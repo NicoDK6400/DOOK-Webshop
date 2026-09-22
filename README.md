@@ -1,1 +1,31 @@
-# DOOK-Webshop
+DOOK Denmark website. Source frontend files live in public/. Run npm run build to fingerprint assets and emit the Cloudflare Worker and public assets in dist/. No payments or live inventory integration.
+
+The A001/AN001 preview uses separate base-frame and left/right photographic DOOK layers. Original homepage DOOK photos preserve rims, highlights and magnet tabs. A001 uses the homepage's exact full-canvas registration. AN001 visually adapts those reference layers; exact physical compatibility is not established by this preview. The green source photo is unchanged; the other nine options recolour only green lens pixels, retaining rims and tabs. Solid and graduated tints remain illustrative. Clear and clear +1.0 intentionally share the same tint.
+
+Click-ons detach before a new pair attaches with staggered left/right motion, without recreating the product page. The latest selection supersedes cancelled animations and image requests. Reduced-motion preferences skip the movement. Frame-only removes both layers; zoom uses their final composite. Enquiries retain the selected model, colour and lens option.
+
+Validated in the browser: A001 and AN001 photographic alignment, original green and recoloured/gradient rims, rapid successive colour changes, frame-only layer removal, final labels and retained layout. JavaScript syntax and local static references checked before publication.
+
+September 2026: public/ now holds the original frontend and assets. npm run build emits a Worker plus public assets in dist/client. The D1 binding DB stores About content, owner identity, partner approvals and the private price list. Price data is never included in public scripts or assets. The imported PurchasePrice list is a draft and requires an administrator to confirm currency/VAT and enable it.
+
+B2B uses dispatcher-owned Sign in with ChatGPT, followed by DOOK's server-side approval. An unapproved signed-in user cannot read prices. The one-time owner activation link binds a stable user ID; its secret is set in Sites, not source. The site's outer sharing policy is separate and remains owner-private until explicitly changed.
+
+Edit About DOOK and social URLs in #admin. Empty name and history fields are intentionally hidden until the owner supplies the story. Partner requests are reviewed here. Social URLs were verified against DOOK Denmark's LinkedIn company profile. The homepage uses the supplied bookmark.png with a downward CSS fade.
+
+The collection and #partners shop have A, AN, T, TA and DOOK categories, using 540 exact SKUs across 45 model families. Public trade-catalog.js contains metadata only. Missing product photos are explicitly labelled; same-model reference images identify the pictured colour. Approved partners can select exact colour, size and quantity, then compose a mailto order enquiry in #selection. Selections last while the page remains open; orders require manual confirmation by DOOK.
+
+News: #news and #news/<id> show only published articles. Administrators write and edit stories at #news-edit and #news-edit/<id>. Drafts and published articles persist in the existing settings table under news:<id>; owner-only server APIs enforce editing.
+
+September 22 administration: #admin is a Danish workspace; #admin-products and #admin-categories manage the live catalogue. New D1 tables store product/category overrides against the original server-side seed, so existing models require no bulk migration. The server validates all fields, global SKUs, prices, roles and same-origin writes. Transactional product writes use version checks to reject stale edits. Removing a product hides it from both catalogues; it can be restored. Existing optical animations remain when only price/stock fields change. Changed photography uses the managed product detail.
+
+Uploads: #admin-product/<model> accepts JPG/PNG/WebP up to 8 MB, stores bytes in the MEDIA R2 binding and metadata in D1, and offers reuse from the image library. Uploaded images are intended as public product assets and served under /media/<uuid>. No SVG or arbitrary executable upload. Removing an image from a product does not permanently delete the shared image.
+
+B2B stock labels are specific to SKU: Available, Few on stock, Out of stock, or Stock status unavailable for missing/stale inventory. #admin-stock controls the few-stock threshold (default 5) and freshness (default 24 hours). Manual inventory lives in catalogue_items; no fake stock is seeded. Stock is advisory and not reserved by an order request.
+
+With activated trade prices, approved partners can submit an order request from #selection. The API recalculates prices, validates active SKUs, snapshots all order lines and buyer-entered delivery details, and uses an idempotency UUID. #admin-orders lists requests, which can be marked handled manually or cancelled. Orders are not emailed or sent to Uniconta automatically. Existing mailto enquiries remain an alternative.
+
+Uniconta is NOT connected. Future work needs authorized API access, the company identifier, partner-to-debtor account mapping, warehouse/availability rules and sales-order settings. The connector must match exact SKUs, write inventory quantities and timestamps, map partner IDs to customer accounts, and transfer persisted pending orders with durable deduplication and a returned Uniconta order reference. It must not treat browser prices, caller-supplied customer accounts or frontend role checks as authoritative. Do not configure credentials in public scripts. There are no invented Uniconta endpoints or fake success states.
+
+Run node scripts/verify-commerce.mjs for isolated SQLite and in-memory R2 integration tests. These do not write to the hosted database. Preview strips identity headers and remains anonymous; privileged flows are tested at the handler boundary. The owner must use their existing one-time activation link before #admin is accessible. Sharing remains owner-private until explicitly changed.
+
+September 22 simplification: one B2B navigation entry leads to retailer login and then the approved partner shop. Direct #partners, #login and #selection routes gate the purchasing interface. Public product pages have no price-login prompts; consumer pages contain no retail prices. Trade prices remain server-gated to approved partners and administrators. Removed repeated partner promotions and shortened public copy. Owner-authored About content in D1 is preserved; only fallback copy was shortened.

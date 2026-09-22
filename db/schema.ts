@@ -1,0 +1,7 @@
+// Legacy owner, partners, settings and prices tables are maintained by migrations 0000–0001.
+import {sqliteTable,text,integer,real,uniqueIndex,index} from 'drizzle-orm/sqlite-core';
+export const catalogueProducts=sqliteTable('catalogue_products',{id:text('id').primaryKey(),payload:text('payload').notNull(),version:integer('version').notNull().default(1),updatedAt:text('updated_at').notNull()});
+export const catalogueCategories=sqliteTable('catalogue_categories',{id:text('id').primaryKey(),payload:text('payload').notNull(),version:integer('version').notNull().default(1)});
+export const catalogueItems=sqliteTable('catalogue_items',{sku:text('sku').primaryKey(),model:text('model').notNull(),active:integer('active').notNull().default(1),stock:real('stock'),stockUpdated:text('stock_updated')},t=>[index('catalogue_items_model_idx').on(t.model)]);
+export const mediaUploads=sqliteTable('media_uploads',{id:text('id').primaryKey(),name:text('name').notNull(),type:text('type').notNull(),bytes:integer('bytes').notNull(),createdAt:text('created_at').notNull(),createdBy:text('created_by').notNull()});
+export const tradeOrders=sqliteTable('trade_orders',{id:text('id').primaryKey(),userId:text('user_id').notNull(),reference:text('reference').notNull(),payload:text('payload').notNull(),status:text('status').notNull().default('pending'),createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull()},t=>[uniqueIndex('trade_orders_reference_unique').on(t.reference),index('trade_orders_user_created_idx').on(t.userId,t.createdAt)]);
