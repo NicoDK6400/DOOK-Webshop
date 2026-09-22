@@ -39,6 +39,7 @@ Projektet opretter en lokal SQLite-database under `.sites-runtime/` første gang
 
 Redigér filerne uden hash i navnet, fx:
 
+- `public/i18n.js`: oversættelser (engelsk/dansk/tysk) for den offentlige side og B2B-kundeflowet. Admin- og sælgerværktøjer er bevidst ikke oversat og forbliver dansk.
 - `public/app.js`: forside, navigation og de oprindelige produktvisninger.
 - `public/style.css`: layout, farver og typografi.
 - `public/shop.js`: B2B-shop og varevalg.
