@@ -84,6 +84,7 @@ Hjemmesiden er selv-hostet: en almindelig Node.js-server, en SQLite-databasefil 
 2. Kør `docker compose up --build`. Databasen og uploadede billeder gemmes i Docker-volumet `dook-data` og overlever genstart.
 3. Opret en konto på `/#signup`, og åbn derefter `/#activate/<OWNER_ACTIVATION_TOKEN>` for at blive administrator.
 4. Skal restore.sql-eksporten (540 forhandlerpriser) importeres, kør `npm run import-legacy-data` (eller `docker compose exec app npm run import-legacy-data`).
+5. Skal `database/ean-import.csv` (540 EAN-numre, forberedt til Uniconta) importeres, kør `npm run import-ean`. Det er sikkert at køre flere gange, og rører kun EAN-feltet — aldrig priser eller lager.
 
 Uden Docker: `npm ci && npm run build && npm start` kører den samme server direkte (kræver Node 22+, som har SQLite indbygget — intet andet skal installeres).
 
@@ -92,3 +93,5 @@ Login-headere fra besøgende accepteres aldrig direkte — identitet kommer alti
 ## Uniconta
 
 Uniconta er endnu ikke tilsluttet. Ordreforespørgsler gemmes i hjemmesidens database og bekræftes nu automatisk med en e-mail til kunden (kræver SMTP-opsætning), men sendes endnu ikke videre til Uniconta. Lagerstatus kan baseres på manuelt indtastede tal. Den kommende integration kræver bl.a. autoriseret API-adgang, firmaoplysninger, match mellem forhandlere og kundenumre samt aftalte regler for lager og salgsordrer.
+
+EAN er valgt som det fælles ID mellem hjemmesiden og Uniconta. Hver vare kan have et EAN-nummer, som redigeres under Varer i administrationen (samme sted som pris og lager), og som aldrig vises på den offentlige hjemmeside eller i forhandlershoppen.

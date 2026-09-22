@@ -8,6 +8,7 @@ const stmt=(db,q,...args)=>db.prepare(q).bind(...args);
 const now=()=>new Date().toISOString();
 const read=async r=>{if(!r.headers.get('content-type')?.startsWith('application/json'))reject('JSON required.',415);const t=await r.text();if(t.length>150000)reject('For mange oplysninger i én ændring.',413);try{return JSON.parse(t)}catch{reject('Invalid JSON.')}};
 const imagePath=v=>{v=clean(v||'',200);if(v&&!/^\/(assets\/[A-Za-z0-9_./-]+\.(?:png|jpg|jpeg|webp)|media\/[a-f0-9-]{36})$/.test(v))reject('Vælg et billede fra billedbiblioteket.');return v};
+const gtin=v=>{v=clean(String(v||''),20).replace(/\s+/g,'');if(!v)return null;if(!/^\d{8,14}$/.test(v))reject('EAN-nummeret skal være 8–14 cifre, eller tomt.');return v};
 export async function catalogue(db,admin=false){
  const overrides=await all(db,'SELECT id,payload,version FROM catalogue_products');const cats=await all(db,'SELECT id,payload,version FROM catalogue_categories');
  const products=new Map(catalogueSeed.map(p=>[p.id,{...p,name:p.id,description:'',kind:p.category==='DOOKs'?'dook':'frame',active:true,version:0}]));for(const r of overrides)products.set(r.id,{...JSON.parse(r.payload),version:r.version});
@@ -29,7 +30,7 @@ export async function commerce(request,env,user){
   return respond({items:rows.map(r=>({sku:r.sku,status:Date.parse(r.stock_updated)<cutoff?'unknown':r.stock<=0?'out':r.stock<=config.fewThreshold?'few':'available',updatedAt:r.stock_updated})),connected:false});
  }
  if(path==='/api/manage/catalogue'&&request.method==='GET'){
-  const c=await catalogue(db,true),prices=await all(db,'SELECT sku,amount FROM prices'),inventory=await all(db,'SELECT sku,stock,stock_updated FROM catalogue_items');return respond({...c,prices,inventory});
+  const c=await catalogue(db,true),prices=await all(db,'SELECT sku,amount FROM prices'),inventory=await all(db,'SELECT sku,stock,stock_updated,ean FROM catalogue_items');return respond({...c,prices,inventory});
  }
  if(path==='/api/manage/product'&&request.method==='PUT'){
   const b=await read(request),id=key(b.id);if(id==='new')reject('Vælg et andet model-ID.');const c=await catalogue(db,true),existing=c.products.find(p=>p.id===id);
@@ -38,15 +39,16 @@ export async function commerce(request,env,user){
   const kind=b.kind||'frame';if(!['frame','dook','other'].includes(kind))reject('Vælg en varetype.');
   const p={id,kind,name:clean(b.name),description:clean(b.description||'',4000),material:clean(b.material||''),category:key(b.category),active:b.active!==false,referenceImage:imagePath(b.referenceImage),referenceColour:clean(b.referenceColour||'Product image'),pairedImage:imagePath(b.pairedImage),variants:[]};
   if(!p.name)reject('Varen skal have et navn.');if(!Array.isArray(b.variants)||!b.variants.length||b.variants.length>40)reject('Tilføj 1–40 farver.');
-  const owned=new Map(c.products.filter(x=>x.id!==id).flatMap(x=>x.variants.flatMap(v=>v.items.map(i=>[i.sku,x.id]))));const seen=new Set(),codes=new Set(),priceRows=[],stockRows=[];
+  const owned=new Map(c.products.filter(x=>x.id!==id).flatMap(x=>x.variants.flatMap(v=>v.items.map(i=>[i.sku,x.id]))));const seen=new Set(),codes=new Set(),eans=new Set(),priceRows=[],stockRows=[];
   const priorStock=new Map((await all(db,'SELECT sku,stock,stock_updated FROM catalogue_items WHERE model=?',id)).map(r=>[r.sku,r]));
   for(const v of b.variants){const code=clean(v.code,100),name=clean(v.name,200);if(!code||!name||codes.has(code))reject('Hver farve skal have en unik farvekode og et navn.');codes.add(code);if(!Array.isArray(v.items)||!v.items.length||v.items.length>20)reject('Tilføj 1–20 størrelser pr. farve.');
    const images=Array.isArray(v.images)?v.images.slice(0,6).map(im=>({src:imagePath(im.src),label:clean(im.label||'Front',100),view:im.view==='angled'?'angled':'front'})).filter(im=>im.src):[];const variant={code,name,images,items:[]};
    for(const i of v.items){const sku=clean(i.sku,160),size=clean(String(i.size||''),40);if(!sku||!size||seen.has(sku))reject('Alle varenumre skal være udfyldt og unikke.');if(owned.has(sku))reject('Varenummeret '+sku+' tilhører '+owned.get(sku)+'.');seen.add(sku);
-    const amount=i.amount===''||i.amount===null?null:Number(i.amount),stock=i.stock===''||i.stock===null||i.stock===undefined?null:Number(i.stock);
+    const amount=i.amount===''||i.amount===null?null:Number(i.amount),stock=i.stock===''||i.stock===null||i.stock===undefined?null:Number(i.stock),ean=gtin(i.ean);
     if(amount!==null&&(!Number.isFinite(amount)||amount<0||amount>1000000||Math.abs(amount*100-Math.round(amount*100))>.00001))reject('Prisen skal være et positivt tal med højst 2 decimaler.');
     if(stock!==null&&(!Number.isInteger(stock)||stock<0||stock>10000000))reject('Lager skal være et helt tal fra 0, eller tomt for ukendt.');
-    const old=priorStock.get(sku);stockRows.push({sku,stock,date:stock===null?null:old?.stock===stock?old.stock_updated:now()});priceRows.push({sku,amount,colour:code,description:p.name+' · '+name+' · '+size});variant.items.push({sku,size});
+    if(ean){if(eans.has(ean))reject('EAN-nummeret '+ean+' bruges allerede på en anden størrelse i denne vare.');eans.add(ean)}
+    const old=priorStock.get(sku);stockRows.push({sku,stock,ean,date:stock===null?null:old?.stock===stock?old.stock_updated:now()});priceRows.push({sku,amount,colour:code,description:p.name+' · '+name+' · '+size});variant.items.push({sku,size});
    }p.variants.push(variant);
   }
   const next=(existing?.version||0)+1;
@@ -54,7 +56,7 @@ export async function commerce(request,env,user){
   const update=existing?.version?stmt(db,'UPDATE catalogue_products SET payload=?,version=version+1,updated_at=? WHERE id=? AND version=?',JSON.stringify(p),now(),id,b.version):stmt(db,'INSERT INTO catalogue_products(id,payload,version,updated_at) VALUES(?,?,1,?)',id,JSON.stringify(p),now());
   const gate='EXISTS(SELECT 1 FROM catalogue_products WHERE id=? AND version=? AND payload=?)',g=[id,next,JSON.stringify(p)];
   const statements=[update,stmt(db,`UPDATE catalogue_items SET active=0 WHERE model=? AND ${gate}`,id,...g),stmt(db,`DELETE FROM prices WHERE model=? AND ${gate}`,id,...g)];
-  for(const r of stockRows)statements.push(stmt(db,`INSERT INTO catalogue_items(sku,model,active,stock,stock_updated) SELECT ?,?,1,?,? WHERE ${gate} ON CONFLICT(sku) DO UPDATE SET model=CASE WHEN catalogue_items.model=excluded.model THEN excluded.model ELSE NULL END,active=1,stock=excluded.stock,stock_updated=excluded.stock_updated`,r.sku,id,r.stock,r.date,...g));
+  for(const r of stockRows)statements.push(stmt(db,`INSERT INTO catalogue_items(sku,model,active,stock,stock_updated,ean) SELECT ?,?,1,?,?,? WHERE ${gate} ON CONFLICT(sku) DO UPDATE SET model=CASE WHEN catalogue_items.model=excluded.model THEN excluded.model ELSE NULL END,active=1,stock=excluded.stock,stock_updated=excluded.stock_updated,ean=excluded.ean`,r.sku,id,r.stock,r.date,r.ean,...g));
   for(const r of priceRows)if(r.amount!==null)statements.push(stmt(db,`INSERT INTO prices(sku,model,colour,description,amount) SELECT ?,?,?,?,? WHERE ${gate} ON CONFLICT(sku) DO UPDATE SET model=excluded.model,colour=excluded.colour,description=excluded.description,amount=excluded.amount`,r.sku,id,r.colour,r.description,r.amount,...g));
   const result=await db.batch(statements);if(!result[0].meta.changes)reject('Varen blev ændret samtidig. Genindlæs og prøv igen.',409);return respond({ok:true,version:next});
  }
