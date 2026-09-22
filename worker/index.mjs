@@ -3,7 +3,9 @@ import {normalizeEmail,isValidEmail,hashPassword,verifyPassword,createSession,de
 import {sendOrderConfirmationEmail,sendPasswordResetEmail} from './mail.mjs';
 import {securityHeaders} from './security-headers.mjs';
 // Identity comes from a session cookie set by /api/login or /api/signup — see auth.mjs.
-const defaults={name:'',history:'',concept:'Danish eyewear with magnetic click-ons. Change your lenses while keeping your favourite frame.',why:'Switch from everyday glasses to sun lenses with one magnetic click. Your optician helps you find the right frame and fit.',instagram:'https://www.instagram.com/dook_denmark/',linkedin:'https://www.linkedin.com/company/dook-denmark/',facebook:'https://www.facebook.com/profile.php?id=61572809430865'};
+// concept/why start empty (like name/history) — the public page shows a translated
+// placeholder until DOOK writes their own story via #admin-content (see aboutPage() in b2b.js).
+const defaults={name:'',history:'',concept:'',why:'',instagram:'https://www.instagram.com/dook_denmark/',linkedin:'https://www.linkedin.com/company/dook-denmark/',facebook:'https://www.facebook.com/profile.php?id=61572809430865'};
 // A JSON API response is never rendered as a page, so a page-level CSP would be
 // meaningless here — the other baseline headers (HSTS, frame/referrer/permissions) still apply.
 const json=(data,status=200,extraHeaders={})=>Response.json(data,{status,headers:{'Cache-Control':'private, no-store','Vary':'Cookie','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'strict-origin-when-cross-origin','Permissions-Policy':'camera=(), microphone=(), geolocation=()','Strict-Transport-Security':'max-age=63072000; includeSubDomains',...extraHeaders}});
