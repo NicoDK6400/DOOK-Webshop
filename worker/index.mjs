@@ -25,8 +25,9 @@ export default {async fetch(request,env){
  if(path.startsWith('/media/'))return mediaResponse(request,env);
  if(!path.startsWith('/api/')){
   if(path==='/'||path==='/index.html'){
-   // A tiny, non-executing config value the client's own cookie-consent banner decides whether to act on — never loads analytics itself.
-   const page=HTML.replace('</head>',`<script>window.GA_MEASUREMENT_ID=${JSON.stringify(env.GA_MEASUREMENT_ID||'')}</script></head>`);
+   // A data attribute, not an inline script, so the strict script-src CSP below never needs 'unsafe-inline'.
+   // The client's own cookie-consent banner decides whether to act on it — this alone never loads analytics.
+   const page=HTML.replace('<body>',`<body data-ga-id="${(env.GA_MEASUREMENT_ID||'').replace(/"/g,'')}">`);
    return new Response(page,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-cache',...securityHeaders(env)}});
   }
   return env.ASSETS?env.ASSETS.fetch(request):new Response('Not found',{status:404});
