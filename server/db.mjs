@@ -1,13 +1,13 @@
-import Database from 'better-sqlite3';
+import {DatabaseSync} from 'node:sqlite';
 import {mkdirSync} from 'node:fs';
 import {dirname} from 'node:path';
 import {runMigrations} from './migrate.mjs';
-// D1-compatible adapter: same prepare/bind/first/all/run + batch shape the worker code
-// and the dev preview (vite.config.mjs) already use, backed by a persistent SQLite file.
+// D1-compatible adapter using Node's built-in SQLite module (node:sqlite) — no
+// native dependency to install or compile, on any platform or Node version.
 export function openDB(path=process.env.DB_PATH||'./data/dook.sqlite'){
  mkdirSync(dirname(path),{recursive:true});
- const sql=new Database(path);
- sql.pragma('journal_mode = WAL');
+ const sql=new DatabaseSync(path);
+ sql.exec('PRAGMA journal_mode = WAL');
  runMigrations(sql);
  return {
   prepare(query){

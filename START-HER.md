@@ -84,7 +84,7 @@ Hjemmesiden er selv-hostet: en almindelig Node.js-server, en SQLite-databasefil 
 3. Opret en konto på `/#signup`, og åbn derefter `/#activate/<OWNER_ACTIVATION_TOKEN>` for at blive administrator.
 4. Skal restore.sql-eksporten (540 forhandlerpriser) importeres, kør `npm run import-legacy-data` (eller `docker compose exec app npm run import-legacy-data`).
 
-Uden Docker: `npm ci && npm run build && npm start` kører den samme server direkte (Node 22+). SQLite-modulet hentes normalt som et færdigbygget binærfil ved `npm ci`; kun hvis der ikke findes en færdigbygget udgave til din platform, kræves Python og en C++-værktøjskæde for at kompilere det selv.
+Uden Docker: `npm ci && npm run build && npm start` kører den samme server direkte (kræver Node 22+, som har SQLite indbygget — intet andet skal installeres).
 
 Login-headere fra besøgende accepteres aldrig direkte — identitet kommer altid fra en server-verificeret session (se `worker/auth.mjs`). De offentlige sider og produktdata får aldrig forhandlerpriser med som statiske data.
 

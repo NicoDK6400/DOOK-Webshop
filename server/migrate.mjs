@@ -1,6 +1,6 @@
 import {readFileSync} from 'node:fs';
-// Shared by the dev preview (vite.config.mjs, node:sqlite) and the production
-// adapter (server/db.mjs, better-sqlite3) — both expose the same sync exec/prepare shape.
+// Shared by the dev preview and the production adapter — both use node:sqlite
+// (server/db.mjs) via the same sync exec/prepare shape.
 export function runMigrations(sql,{journalPath='drizzle/meta/_journal.json',migrationsDir='drizzle'}={}){
  sql.exec('CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)');
  const journal=JSON.parse(readFileSync(journalPath,'utf8'));
