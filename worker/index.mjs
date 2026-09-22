@@ -48,6 +48,10 @@ export default {async fetch(request,env){
    const articles=rows.map(r=>JSON.parse(r.value)).filter(a=>a.published).sort((a,b)=>b.date.localeCompare(a.date));
    return json({articles});
   }
+  if(path==='/api/slideshow'&&request.method==='GET'){
+   const row=await env.DB.prepare("SELECT value FROM settings WHERE key='slideshow'").first();
+   return json({images:row?JSON.parse(row.value):[]});
+  }
   if(path==='/api/signup'&&request.method==='POST'){
    const b=await body(request),email=normalizeEmail(b.email);
    if(!isValidEmail(email))fail('Enter a valid email address.',400);
@@ -135,6 +139,17 @@ export default {async fetch(request,env){
   if(path==='/api/admin/pricing'&&request.method==='PUT'){
    const b=await body(request);if(!['DKK','EUR'].includes(b.currency)||typeof b.enabled!=='boolean'||!['excl. VAT','incl. VAT'].includes(b.tax))fail('Check currency and VAT settings.',400);
    await env.DB.prepare("INSERT INTO settings(key,value) VALUES('prices',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify({enabled:b.enabled,currency:b.currency,tax:b.tax})).run();return json({ok:true});
+  }
+  if(path==='/api/admin/slideshow'&&request.method==='PUT'){
+   const b=await body(request);
+   if(!Array.isArray(b.images)||b.images.length>30)fail('Vælg højst 30 billeder.',400);
+   const images=b.images.map(im=>{
+    const src=str(im.src,300);
+    if(!/^\/(assets\/[A-Za-z0-9_./-]+\.(?:png|jpg|jpeg|webp)|media\/[a-f0-9-]{36})$/.test(src))fail('Vælg et billede fra billedbiblioteket.',400);
+    return {src,alt:str(im.alt||'',200)};
+   });
+   await env.DB.prepare("INSERT INTO settings(key,value) VALUES('slideshow',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(JSON.stringify(images)).run();
+   return json({images});
   }
   fail('Not found.',404);
  }catch(error){if(!error.status)console.error('DOOK service error',error.message);return json({error:error.status?error.message:'Could not load or save right now. Your changes have not been cleared. Please try again.'},error.status||503)}

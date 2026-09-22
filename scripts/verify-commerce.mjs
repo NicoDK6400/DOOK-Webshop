@@ -66,6 +66,14 @@ const invalid=await worker.fetch(new Request('https://test.local/api/manage/medi
 assert.equal((await call('/api/manage/media','partner','POST',{})).status,403);
 const pending={title:'Draft',excerpt:'Intro',body:'Story',date:'2026-09-22',published:false,image:''};assert.equal((await call('/api/admin/news','owner','PUT',pending)).status,200);assert.equal((await call('/api/news')).data.articles.length,0);
 
+// --- Homepage slideshow ---
+assert.deepEqual((await call('/api/slideshow')).data.images,[]);
+assert.equal((await call('/api/admin/slideshow','partner','PUT',{images:[]})).status,403);
+assert.equal((await call('/api/admin/slideshow','owner','PUT',{images:[{src:'/not-a-real-image.exe',alt:''}]})).status,400);
+const savedSlideshow=await call('/api/admin/slideshow','owner','PUT',{images:[{src:media.url,alt:'Sunglasses on a table'}]});
+assert.equal(savedSlideshow.status,200);
+assert.equal((await call('/api/slideshow')).data.images[0].src,media.url);
+
 // --- Authentication: signup, login lockout, password reset, logout ---
 const post=(path,body,extraHeaders={})=>worker.fetch(new Request('https://test.local'+path,{method:'POST',headers:{'content-type':'application/json',origin:'https://test.local',...extraHeaders},body:JSON.stringify(body)}),env);
 assert.equal((await post('/api/signup',{email:'not-an-email',password:'longenoughpassword'})).status,400);
