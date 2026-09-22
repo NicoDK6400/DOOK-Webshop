@@ -2,14 +2,28 @@ import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import assert from 'node:assert/strict';
 import worker from '../worker/index.mjs';
+import {createPasswordResetToken} from '../worker/auth.mjs';
 const sql=new DatabaseSync(':memory:');
 for(const entry of JSON.parse(readFileSync('drizzle/meta/_journal.json')).entries)sql.exec(readFileSync('drizzle/'+entry.tag+'.sql','utf8'));
 const DB={prepare(q){const make=(args=[])=>({first:async()=>sql.prepare(q).get(...args)||null,all:async()=>({results:sql.prepare(q).all(...args)}),run:async()=>({meta:sql.prepare(q).run(...args)})});return {...make(),bind:(...args)=>make(args)}},async batch(statements){sql.exec('BEGIN');try{const out=[];for(const s of statements)out.push(await s.run());sql.exec('COMMIT');return out}catch(e){sql.exec('ROLLBACK');throw e}}};
 const files=new Map(),MEDIA={async put(k,b,m){files.set(k,{body:b,...m})},async get(k){return files.get(k)||null},async delete(k){files.delete(k)}};
 const env={DB,MEDIA,OWNER_ACTIVATION_TOKEN:'test-only'};
-async function call(path,user=null,method='GET',data,origin='https://test.local'){const headers={'content-type':'application/json',origin};if(user){headers['oai-authenticated-user-id']=user;headers['oai-authenticated-user-email']=user+'@example.com'}const r=await worker.fetch(new Request('https://test.local'+path,{method,headers,body:data?JSON.stringify(data):undefined}),env);return {status:r.status,data:await r.json()}}
+
+// Identity now comes from a signed-up session cookie, not a trusted header — sign
+// each simulated user up once (lazily) and reuse its cookie/id for later calls.
+const users=new Map();
+async function ensureUser(label){
+ if(users.has(label))return users.get(label);
+ const r=await worker.fetch(new Request('https://test.local/api/signup',{method:'POST',headers:{'content-type':'application/json',origin:'https://test.local'},body:JSON.stringify({email:label+'@example.com',password:'correct horse battery '+label})}),env);
+ const info={cookie:r.headers.get('set-cookie').split(';')[0],id:(await r.json()).user.id};
+ users.set(label,info);
+ return info;
+}
+const idOf=async label=>(await ensureUser(label)).id;
+async function call(path,user=null,method='GET',data,origin='https://test.local'){const headers={'content-type':'application/json',origin};if(user)headers.cookie=(await ensureUser(user)).cookie;const r=await worker.fetch(new Request('https://test.local'+path,{method,headers,body:data?JSON.stringify(data):undefined}),env);return {status:r.status,data:await r.json()}}
+
 await call('/api/activate-owner','owner','POST',{token:'test-only'});
-await call('/api/access-request','partner','POST',{company:'Optician',name:'Partner'});await call('/api/admin/partner','owner','PUT',{id:'partner',status:'approved'});
+await call('/api/access-request','partner','POST',{company:'Optician',name:'Partner'});await call('/api/admin/partner','owner','PUT',{id:await idOf('partner'),status:'approved'});
 assert.equal((await call('/api/catalogue')).data.products.length,45);
 assert.equal((await call('/api/manage/catalogue')).status,401);assert.equal((await call('/api/manage/catalogue','partner')).status,403);
 const category={id:'TEST',name:'Test collection',description:'Test',position:9,active:true,version:0};assert.equal((await call('/api/manage/category','owner','PUT',category)).status,200);
@@ -33,7 +47,7 @@ assert.equal((await call('/api/prices?role=admin','retail')).status,403);
 await call('/api/access-request','pending','POST',{company:'Awaiting approval',name:'Pending'});
 assert.equal((await call('/api/prices','pending')).status,403);
 await call('/api/access-request','revoked','POST',{company:'Revoked account',name:'Revoked'});
-await call('/api/admin/partner','owner','PUT',{id:'revoked',status:'revoked'});
+await call('/api/admin/partner','owner','PUT',{id:await idOf('revoked'),status:'revoked'});
 assert.equal((await call('/api/prices','revoked')).status,403);
 assert.ok((await call('/api/prices','partner')).data.prices.some(p=>p.sku==='TESTFRAME-49-BLUE'&&p.amount===200));
 assert.ok((await call('/api/prices','owner')).data.prices.length>0);
@@ -45,9 +59,38 @@ product.version=2;product.active=false;assert.equal((await call('/api/manage/pro
 assert.equal((await call('/api/orders','partner','POST',{...order,id:crypto.randomUUID()})).status,400);assert.equal((await call('/api/manage/orders','owner')).data.orders[0].total,400);
 product.version=3;product.active=true;assert.equal((await call('/api/manage/product','owner','PUT',product)).status,200);
 const duplicate=structuredClone(product);duplicate.id='DUPLICATE';duplicate.version=0;assert.equal((await call('/api/manage/product','owner','PUT',duplicate)).status,400);
-const headers={'origin':'https://test.local','oai-authenticated-user-id':'owner','oai-authenticated-user-email':'owner@example.com','content-type':'image/webp','x-file-name':'test.webp'};
+const ownerCookie=(await ensureUser('owner')).cookie;
+const headers={'origin':'https://test.local',cookie:ownerCookie,'content-type':'image/webp','x-file-name':'test.webp'};
 const upload=await worker.fetch(new Request('https://test.local/api/manage/media',{method:'POST',headers,body:readFileSync('public/assets/a002.webp')}),env);assert.equal(upload.status,201);const media=await upload.json();assert.ok(files.size===1);assert.equal((await worker.fetch(new Request('https://test.local'+media.url),env)).status,200);
 const invalid=await worker.fetch(new Request('https://test.local/api/manage/media',{method:'POST',headers,body:'<svg><script>alert(1)</script></svg>'}),env);assert.equal(invalid.status,400);
 assert.equal((await call('/api/manage/media','partner','POST',{})).status,403);
 const pending={title:'Draft',excerpt:'Intro',body:'Story',date:'2026-09-22',published:false,image:''};assert.equal((await call('/api/admin/news','owner','PUT',pending)).status,200);assert.equal((await call('/api/news')).data.articles.length,0);
-console.log('PASS: existing 540 prices + 45 models; catalogue CRUD, duplicate SKU and stale edit protection; admin-only writes/upload; CSRF; private prices and inventory; stock thresholds/staleness; archive/restore; durable, server-priced, idempotent orders and owner-scoped reads; validated R2 images; news draft access.');
+
+// --- Authentication: signup, login lockout, password reset, logout ---
+const post=(path,body,extraHeaders={})=>worker.fetch(new Request('https://test.local'+path,{method:'POST',headers:{'content-type':'application/json',origin:'https://test.local',...extraHeaders},body:JSON.stringify(body)}),env);
+assert.equal((await post('/api/signup',{email:'not-an-email',password:'longenoughpassword'})).status,400);
+assert.equal((await post('/api/signup',{email:'weak@example.com',password:'short'})).status,400);
+const authEmail='authtest@example.com',authPassword='a fairly long password 1';
+assert.equal((await post('/api/signup',{email:authEmail,password:authPassword})).status,201);
+assert.equal((await post('/api/signup',{email:authEmail,password:authPassword})).status,409);
+for(let i=0;i<5;i++)assert.equal((await post('/api/login',{email:authEmail,password:'totally wrong'})).status,401);
+assert.equal((await post('/api/login',{email:authEmail,password:'totally wrong'})).status,429);
+assert.equal((await post('/api/login',{email:authEmail,password:authPassword})).status,429,'even the correct password is rejected while locked out');
+
+const resetEmail='resettest@example.com',oldPassword='original password 123',newPassword='brand new password 456';
+const signedUp=await post('/api/signup',{email:resetEmail,password:oldPassword});
+const resetUserId=(await signedUp.json()).user.id;
+assert.equal((await post('/api/request-password-reset',{email:resetEmail})).status,200);
+assert.equal((await post('/api/request-password-reset',{email:'nobody@example.com'})).status,200,'no user enumeration');
+const token=await createPasswordResetToken(DB,resetUserId);
+assert.equal((await post('/api/reset-password',{token,password:newPassword})).status,200);
+assert.equal((await post('/api/reset-password',{token,password:'another password 789'})).status,400,'a reset token is single-use');
+assert.equal((await post('/api/login',{email:resetEmail,password:oldPassword})).status,401);
+const relogin=await post('/api/login',{email:resetEmail,password:newPassword});
+assert.equal(relogin.status,200);
+const sessionCookie=relogin.headers.get('set-cookie').split(';')[0];
+assert.equal((await (await worker.fetch(new Request('https://test.local/api/me',{headers:{cookie:sessionCookie}}),env)).json()).user.email,resetEmail);
+assert.equal((await post('/api/logout',{},{cookie:sessionCookie})).status,200);
+assert.equal((await (await worker.fetch(new Request('https://test.local/api/me',{headers:{cookie:sessionCookie}}),env)).json()).user,null);
+
+console.log('PASS: existing 540 prices + 45 models; catalogue CRUD, duplicate SKU and stale edit protection; admin-only writes/upload; CSRF; private prices and inventory; stock thresholds/staleness; archive/restore; durable, server-priced, idempotent orders and owner-scoped reads; validated R2 images; news draft access; signup/login/logout, lockout after repeated failures, and single-use password reset.');

@@ -5,14 +5,16 @@ Denne pakke indeholder hjemmesiden, som blev udgivet 22. september 2026, samt en
 ## Det følger med
 
 - `public/`: hjemmesidens HTML, CSS, JavaScript og alle de indbyggede billeder.
-- `worker/`: serverkode til loginrettigheder, priser, administration, billeder og ordreforespørgsler.
+- `worker/`: serverkode til login, priser, administration, billeder og ordreforespørgsler — hostinguafhængig.
+- `server/`: den selv-hostede Node.js-server (database-, billed- og mailtilkobling, HTTP-serveren selv).
 - `db/` og `drizzle/`: databaseskema og migrationer.
 - `database/`: en separat eksport af sidens gemte data i SQLite, SQL og JSON.
-- `scripts/`: byggefunktioner og en test af adgang, varer, billeder og ordrer.
-- `dist/`: den byggede udgave til Cloudflare Workers med tilhørende filer.
+- `scripts/`: byggefunktioner og en test af login, adgang, varer, billeder og ordrer.
+- `dist/`: den byggede udgave (server + statiske filer), oprettet af `npm run build`.
+- `Dockerfile` og `docker-compose.yml`: opsætning til at køre sitet i en container.
+- `.env.example`: skabelon for miljøvariabler (aktiveringstoken, database-/billedplacering, SMTP).
 - `package.json` og `package-lock.json`: projektets afhængigheder.
 - `README.md`: tekniske noter om funktionerne og Uniconta-forberedelsen.
-- `.openai/hosting.json`: henvisningen til det eksisterende Sites-projekt.
 
 ## Åbn projektet lokalt
 
@@ -29,9 +31,9 @@ npm run dev
 Åbn den lokale adresse, som terminalen viser (normalt http://localhost:5173).
 Du skal køre udviklingsserveren; det er ikke nok at dobbeltklikke på `index.html`.
 
-Den lokale visning er anonym. Du kan se den almindelige hjemmeside, men administrator- og forhandlerfunktionerne kræver login og serverrettigheder fra hostingmiljøet. Der følger ingen indbygget administratoradgang eller testkodeord med. Testen nedenfor kan kontrollere de beskyttede serverfunktioner isoleret uden at bruge den rigtige hjemmeside.
+Login virker også lokalt: opret en konto via `#signup`, og sæt `OWNER_ACTIVATION_TOKEN` i en lokal `.env`-fil for selv at kunne blive administrator via `#activate/<token>`. Der følger ingen indbygget administratoradgang eller testkodeord med. Testen nedenfor kan kontrollere de beskyttede serverfunktioner isoleret uden at bruge den rigtige hjemmeside.
 
-Projektet opretter en lokal SQLite-database under `.sites-runtime/` første gang. Den indeholder startdata fra migrationerne. Eksporten i `database/` importeres ikke automatisk.
+Projektet opretter en lokal SQLite-database under `.sites-runtime/` første gang. Den indeholder startdata fra migrationerne. Eksporten i `database/` importeres ikke automatisk (se `npm run import-legacy-data` i afsnittet om drift nedenfor).
 
 ## Ret indhold og udseende
 
@@ -43,7 +45,7 @@ Redigér filerne uden hash i navnet, fx:
 - `public/manage.js`: administration af varer, kategorier, billeder og ordrer.
 - `public/b2b.js`: kontoadgang og About DOOK.
 - `public/news.js`: nyheder.
-- `worker/index.mjs` og `worker/commerce.mjs`: serverlogik og adgangskontrol.
+- `worker/index.mjs`, `worker/commerce.mjs` og `worker/auth.mjs`: serverlogik, adgangskontrol og login.
 
 Filer som `app.<hash>.js` genereres ved build og skal ikke redigeres manuelt. Når du har ændret en kildefil, opdateres de referencer, som `index.html` bruger, med:
 
@@ -78,7 +80,7 @@ Testen bruger en isoleret database og testbilleder i hukommelsen. Den ændrer ik
 ## Dataeksport
 
 `database/dook.sqlite` er en database med skema og eksporterede data. Den kan åbnes i et SQLite-værktøj.
-`database/restore.sql` kan importeres i en ny, tom SQLite-/D1-database. Kør ikke først migrationerne i samme tomme database: SQL-filen indeholder allerede tabellerne.
+`database/restore.sql` kan genindlæses i den kørende hjemmesides database med `npm run import-legacy-data` (se driftsafsnittet nedenfor) — det er sikkert at køre flere gange.
 `database/snapshot.json` indeholder eksporttidspunkt og rækker fordelt på tabel.
 
 Eksporten indeholder de 540 gemte forhandlerpriser. Ved eksporten var der ingen oprettede webordrer, forhandlerkonti, administratorer, uploadede billeder eller ændringer i kataloget. De 45 oprindelige modeller og deres billeder ligger i koden og i `public/assets/`.
@@ -86,23 +88,19 @@ Eksporten indeholder de 540 gemte forhandlerpriser. Ved eksporten var der ingen 
 Datafilerne indeholder interne forhandlerpriser. De skal blive uden for den offentligt serverede mappe `public/`.
 En eksport er et øjebliksbillede; senere ændringer på den udgivne hjemmeside bliver ikke automatisk opdateret i ZIP-filen.
 
-## Hvis siden flyttes til en anden server
+## Sådan driftes hjemmesiden
 
-Den eksisterende løsning er bygget til Sites/Cloudflare Workers. Den kan ikke flyttes som en ren statisk HTML-side med alle funktioner intakte.
+Hjemmesiden er selv-hostet: en almindelig Node.js-server, en SQLite-databasefil og en billedmappe på disk, pakket med den medfølgende `Dockerfile`/`docker-compose.yml`. Den afhænger ikke længere af OpenAI Sites eller "Sign in with ChatGPT".
 
-Der skal opsættes:
+1. Kopiér `.env.example` til `.env`, og udfyld `OWNER_ACTIVATION_TOKEN` (et langt, tilfældigt hemmeligt kodeord) samt SMTP-oplysninger, hvis I har dem.
+2. Kør `docker compose up --build`. Databasen og uploadede billeder gemmes i Docker-volumet `dook-data` og overlever genstart.
+3. Opret en konto på `/#signup`, og åbn derefter `/#activate/<OWNER_ACTIVATION_TOKEN>` for at blive administrator.
+4. Skal restore.sql-eksporten (540 forhandlerpriser) importeres, kør `npm run import-legacy-data` (eller `docker compose exec app npm run import-legacy-data`).
 
-- En Worker-kompatibel server eller en tilpasset serverløsning.
-- Databasebindingen `DB` og billedlageret `MEDIA`.
-- Login og serverkontrollerede rettigheder for administratorer og godkendte forhandlere.
-- Nye hemmelige værdier, herunder administratoraktivering, i serverens miljøopsætning.
+Uden Docker: `npm ci && npm run build && npm start` kører den samme server direkte (Node 20+; SQLite-modulet kompileres første gang, hvilket kræver Python og en C++-værktøjskæde).
 
-ChatGPT-loginruterne og identitetsoplysningerne leveres i dag af Sites. På anden hosting skal login integreres korrekt. Identitets-headere må ikke accepteres direkte fra besøgende. De offentlige sider og produktdata må aldrig få forhandlerpriser med som statiske data.
-
-Pakken indeholder ikke adgangstokens, loginoplysninger, `.env`, Git-historik eller `node_modules`. Afhængigheder installeres med `npm ci`. Den nuværende Sites-adgangspolitik følger heller ikke automatisk med til et nyt hostingmiljø.
-
-`.openai/hosting.json` peger på det eksisterende DOOK-projekt. Brug den ikke til at udgive til et andet projekt uden at ændre hostingopsætningen. At køre projektet lokalt udgiver ingen ændringer.
+Login-headere fra besøgende accepteres aldrig direkte — identitet kommer altid fra en server-verificeret session (se `worker/auth.mjs`). De offentlige sider og produktdata får aldrig forhandlerpriser med som statiske data.
 
 ## Uniconta
 
-Uniconta er endnu ikke tilsluttet. Ordreforespørgsler gemmes i hjemmesidens database, og lagerstatus kan baseres på manuelt indtastede tal. Den kommende integration kræver bl.a. autoriseret API-adgang, firmaoplysninger, match mellem forhandlere og kundenumre samt aftalte regler for lager og salgsordrer.
+Uniconta er endnu ikke tilsluttet. Ordreforespørgsler gemmes i hjemmesidens database og bekræftes nu automatisk med en e-mail til kunden (kræver SMTP-opsætning), men sendes endnu ikke videre til Uniconta. Lagerstatus kan baseres på manuelt indtastede tal. Den kommende integration kræver bl.a. autoriseret API-adgang, firmaoplysninger, match mellem forhandlere og kundenumre samt aftalte regler for lager og salgsordrer.
