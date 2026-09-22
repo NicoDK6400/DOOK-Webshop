@@ -19,7 +19,7 @@ Denne pakke indeholder hjemmesiden, som blev udgivet 22. september 2026, samt en
 ## Åbn projektet lokalt
 
 1. Pak ZIP-filen ud.
-2. Installér Node.js 24 og Python 3, hvis de ikke allerede er installeret.
+2. Installér [Node.js](https://nodejs.org) 22 eller nyere, hvis det ikke allerede er installeret.
 3. Åbn mappen `DOOK-hjemmeside` i fx Visual Studio Code.
 4. Åbn en terminal i mappen og kør:
 
@@ -50,29 +50,16 @@ Redigér filerne uden hash i navnet, fx:
 Filer som `app.<hash>.js` genereres ved build og skal ikke redigeres manuelt. Når du har ændret en kildefil, opdateres de referencer, som `index.html` bruger, med:
 
 ```sh
-python3 scripts/publish-assets.py
+node scripts/publish-assets.mjs
 ```
 
-På Windows kan Python-kommandoen hedde `py -3` eller `python`. Brug da fx:
-
-```sh
-py -3 scripts/publish-assets.py
-```
-
-Genindlæs siden efter opdateringen. Filen `scripts/publish-assets.py` opdaterer også CSS-referencen.
+Genindlæs siden efter opdateringen. Scriptet opdaterer også CSS-referencen.
 
 ## Byg og kontrollér
 
 ```sh
 npm run build
 node scripts/verify-commerce.mjs
-```
-
-Hvis `python3` ikke findes som kommando på Windows, svarer dette til byggekommandoen:
-
-```sh
-py -3 scripts/publish-assets.py
-node scripts/build.mjs
 ```
 
 Testen bruger en isoleret database og testbilleder i hukommelsen. Den ændrer ikke sidens rigtige data.
@@ -97,7 +84,7 @@ Hjemmesiden er selv-hostet: en almindelig Node.js-server, en SQLite-databasefil 
 3. Opret en konto på `/#signup`, og åbn derefter `/#activate/<OWNER_ACTIVATION_TOKEN>` for at blive administrator.
 4. Skal restore.sql-eksporten (540 forhandlerpriser) importeres, kør `npm run import-legacy-data` (eller `docker compose exec app npm run import-legacy-data`).
 
-Uden Docker: `npm ci && npm run build && npm start` kører den samme server direkte (Node 20+; SQLite-modulet kompileres første gang, hvilket kræver Python og en C++-værktøjskæde).
+Uden Docker: `npm ci && npm run build && npm start` kører den samme server direkte (kræver Node 22+, som har SQLite indbygget — intet andet skal installeres).
 
 Login-headere fra besøgende accepteres aldrig direkte — identitet kommer altid fra en server-verificeret session (se `worker/auth.mjs`). De offentlige sider og produktdata får aldrig forhandlerpriser med som statiske data.
 

@@ -14,7 +14,7 @@ B2B and administration use ordinary email+password accounts (`#signup`, `#login`
 
 Order confirmations and password-reset links are emailed via SMTP (configure `SMTP_HOST`/`SMTP_USER`/`SMTP_PASS`/`SMTP_FROM` — see `.env.example`). Without SMTP configured, order confirmation stays screen-only and password resets must be handled manually by an administrator.
 
-To run it: copy `.env.example` to `.env`, fill in `OWNER_ACTIVATION_TOKEN` (and SMTP if available), then `docker compose up --build`. The database and uploaded images persist in the `dook-data` Docker volume across restarts. Sign up for an account at `/#signup`, then open `/#activate/<OWNER_ACTIVATION_TOKEN>` to become the administrator. Without Docker, `npm ci && npm run build && npm start` runs the same server directly on the host (Node 20+, needs a C++ toolchain the first time to build the SQLite native module).
+To run it: copy `.env.example` to `.env`, fill in `OWNER_ACTIVATION_TOKEN` (and SMTP if available), then `docker compose up --build`. The database and uploaded images persist in the `dook-data` Docker volume across restarts. Sign up for an account at `/#signup`, then open `/#activate/<OWNER_ACTIVATION_TOKEN>` to become the administrator. Without Docker, `npm ci && npm run build && npm start` runs the same server directly on the host (Node 22+, for `node:sqlite` — nothing else to install, no native build tools).
 
 Edit About DOOK and social URLs in #admin. Empty name and history fields are intentionally hidden until the owner supplies the story. Partner requests are reviewed here. Social URLs were verified against DOOK Denmark's LinkedIn company profile. The homepage uses the supplied bookmark.png with a downward CSS fade.
 

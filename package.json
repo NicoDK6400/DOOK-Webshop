@@ -3,12 +3,11 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "python3 scripts/publish-assets.py && node scripts/build.mjs",
+    "build": "node scripts/publish-assets.mjs && node scripts/build.mjs",
     "start": "node dist/server/serve.mjs",
     "import-legacy-data": "node scripts/import-legacy-data.mjs"
   },
   "dependencies": {
-    "better-sqlite3": "^11.10.0",
     "nodemailer": "^6.9.16"
   },
   "devDependencies": {
