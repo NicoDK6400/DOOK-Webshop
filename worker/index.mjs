@@ -1,14 +1,19 @@
 import {commerce,mediaResponse} from './commerce.mjs';
-// Identity headers are supplied by the Sites dispatcher, never by a login form.
+import {normalizeEmail,isValidEmail,hashPassword,verifyPassword,createSession,destroySession,getSessionUser,sessionIdFromRequest,sessionCookieHeader,clearSessionCookieHeader,loginLockedMs,recordLoginFailure,clearLoginFailures,createPasswordResetToken,consumePasswordResetToken} from './auth.mjs';
+import {sendOrderConfirmationEmail,sendPasswordResetEmail} from './mail.mjs';
+// Identity comes from a session cookie set by /api/login or /api/signup — see auth.mjs.
 const defaults={name:'',history:'',concept:'Danish eyewear with magnetic click-ons. Change your lenses while keeping your favourite frame.',why:'Switch from everyday glasses to sun lenses with one magnetic click. Your optician helps you find the right frame and fit.',instagram:'https://www.instagram.com/dook_denmark/',linkedin:'https://www.linkedin.com/company/dook-denmark/',facebook:'https://www.facebook.com/profile.php?id=61572809430865'};
-const json=(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'private, no-store','Vary':'Cookie','X-Content-Type-Options':'nosniff'}});
+const json=(data,status=200,extraHeaders={})=>Response.json(data,{status,headers:{'Cache-Control':'private, no-store','Vary':'Cookie','X-Content-Type-Options':'nosniff',...extraHeaders}});
 const fail=(message,status)=>{throw Object.assign(new Error(message),{status})};
 async function settings(db){const row=await db.prepare("SELECT value FROM settings WHERE key='prices'").first();return row?JSON.parse(row.value):{enabled:false,currency:'DKK',tax:'excl. VAT'}}
+async function roleFor(db,userId){
+ const admin=await db.prepare('SELECT user_id FROM site_owner WHERE slot=1').first();
+ return admin?.user_id===userId?'admin':(await db.prepare('SELECT status FROM partners WHERE user_id=?').bind(userId).first())?.status||'unregistered';
+}
 async function identity(request,env){
- const id=request.headers.get('oai-authenticated-user-id'),email=request.headers.get('oai-authenticated-user-email');
- if(!id||!email)return null;
- const admin=await env.DB.prepare('SELECT user_id FROM site_owner WHERE slot=1').first();
- return {id,email,role:admin?.user_id===id?'admin':(await env.DB.prepare('SELECT status FROM partners WHERE user_id=?').bind(id).first())?.status||'unregistered'};
+ const session=await getSessionUser(request,env.DB);
+ if(!session)return null;
+ return {id:session.id,email:session.email,role:await roleFor(env.DB,session.id)};
 }
 async function body(request){if(!request.headers.get('content-type')?.startsWith('application/json'))fail('JSON required.',415);const raw=await request.text();if(raw.length>100000)fail('The submitted content is too long.',413);try{return JSON.parse(raw)}catch{fail('Invalid content.',400)}}
 const str=(value,max=8000)=>typeof value==='string'&&value.length<=max?value.trim():fail('Please check the submitted fields.',400);
@@ -24,7 +29,16 @@ export default {async fetch(request,env){
   if(!['GET','POST','PUT'].includes(request.method))fail('Method not allowed.',405);
   if(request.method!=='GET'&&(request.headers.get('origin')!==url.origin||request.headers.get('sec-fetch-site')==='cross-site'))fail('Please reload the page and try again.',403);
   const user=await identity(request,env);
-  const managed=await commerce(request,env,user);if(managed)return managed;
+  const managed=await commerce(request,env,user);
+  if(managed){
+   if(path==='/api/orders'&&request.method==='POST'&&managed.status===201){
+    managed.clone().json().then(async data=>{
+     const row=await env.DB.prepare('SELECT payload FROM trade_orders WHERE id=?').bind(data.order.id).first();
+     if(row)await sendOrderConfirmationEmail(JSON.parse(row.payload));
+    }).catch(error=>console.error('order confirmation email failed',error.message));
+   }
+   return managed;
+  }
   if(path==='/api/me'&&request.method==='GET')return json({user});
   if(path==='/api/about'&&request.method==='GET'){
    const row=await env.DB.prepare("SELECT value FROM settings WHERE key='about'").first();return json({content:{...defaults,...(row?JSON.parse(row.value):{})}});
@@ -33,6 +47,44 @@ export default {async fetch(request,env){
    const rows=(await env.DB.prepare("SELECT value FROM settings WHERE key LIKE 'news:%'").all()).results;
    const articles=rows.map(r=>JSON.parse(r.value)).filter(a=>a.published).sort((a,b)=>b.date.localeCompare(a.date));
    return json({articles});
+  }
+  if(path==='/api/signup'&&request.method==='POST'){
+   const b=await body(request),email=normalizeEmail(b.email);
+   if(!isValidEmail(email))fail('Enter a valid email address.',400);
+   if(typeof b.password!=='string'||b.password.length<10||b.password.length>200)fail('Choose a password with at least 10 characters.',400);
+   if(await env.DB.prepare('SELECT user_id FROM accounts WHERE email=?').bind(email).first())fail('An account with this email already exists.',409);
+   const id=crypto.randomUUID();
+   await env.DB.prepare('INSERT INTO accounts(user_id,email,password_hash,created_at) VALUES(?,?,?,?)').bind(id,email,await hashPassword(b.password),new Date().toISOString()).run();
+   const session=await createSession(env.DB,id);
+   return json({user:{id,email,role:'unregistered'}},201,{'Set-Cookie':sessionCookieHeader(request,session.id,session.expiresAt)});
+  }
+  if(path==='/api/login'&&request.method==='POST'){
+   const b=await body(request),email=normalizeEmail(b.email);
+   const locked=loginLockedMs(email);if(locked>0)fail('Too many attempts. Try again in '+Math.ceil(locked/60000)+' minute(s).',429);
+   const row=await env.DB.prepare('SELECT user_id,email,password_hash FROM accounts WHERE email=?').bind(email).first();
+   const valid=row&&typeof b.password==='string'&&await verifyPassword(b.password,row.password_hash);
+   if(!valid){recordLoginFailure(email);fail('Incorrect email or password.',401)}
+   clearLoginFailures(email);
+   const session=await createSession(env.DB,row.user_id);
+   return json({user:{id:row.user_id,email:row.email,role:await roleFor(env.DB,row.user_id)}},200,{'Set-Cookie':sessionCookieHeader(request,session.id,session.expiresAt)});
+  }
+  if(path==='/api/logout'&&request.method==='POST'){
+   await destroySession(env.DB,sessionIdFromRequest(request));
+   return json({ok:true},200,{'Set-Cookie':clearSessionCookieHeader(request)});
+  }
+  if(path==='/api/request-password-reset'&&request.method==='POST'){
+   const b=await body(request),email=normalizeEmail(b.email);
+   const row=await env.DB.prepare('SELECT user_id FROM accounts WHERE email=?').bind(email).first();
+   if(row){const token=await createPasswordResetToken(env.DB,row.user_id);sendPasswordResetEmail(email,url.origin+'/#reset-password/'+token).catch(()=>{})}
+   return json({ok:true});
+  }
+  if(path==='/api/reset-password'&&request.method==='POST'){
+   const b=await body(request);
+   if(typeof b.password!=='string'||b.password.length<10||b.password.length>200)fail('Choose a password with at least 10 characters.',400);
+   const userId=await consumePasswordResetToken(env.DB,str(b.token,200));
+   if(!userId)fail('This reset link is invalid or has expired.',400);
+   await env.DB.prepare('UPDATE accounts SET password_hash=? WHERE user_id=?').bind(await hashPassword(b.password),userId).run();
+   return json({ok:true});
   }
   if(!user)fail('Please sign in to continue.',401);
   // A one-time owner activation binds the stable signed-in ID. No first-user admin.
