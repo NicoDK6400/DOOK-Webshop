@@ -23,7 +23,7 @@ export async function commerce(request,env,user){
  if(!user)reject('Please sign in to continue.',401);
  const admin=user.role==='admin';
  if(path.startsWith('/api/manage/')&&!admin)reject('Administrator access required.',403);
- if(['/api/inventory','/api/orders'].includes(path)&&!['admin','approved'].includes(user.role))reject('Approved partner access required.',403);
+ if(['/api/inventory','/api/orders'].includes(path)&&!['admin','approved','seller'].includes(user.role))reject('Approved partner access required.',403);
  if(path==='/api/inventory'&&request.method==='GET'){
   const rows=await all(db,'SELECT sku,stock,stock_updated FROM catalogue_items WHERE active=1 AND stock IS NOT NULL');const config=await commerceSettings(db);const cutoff=Date.now()-config.stockFreshHours*3600000;
   return respond({items:rows.map(r=>({sku:r.sku,status:Date.parse(r.stock_updated)<cutoff?'unknown':r.stock<=0?'out':r.stock<=config.fewThreshold?'few':'available',updatedAt:r.stock_updated})),connected:false});
@@ -77,16 +77,29 @@ export async function commerce(request,env,user){
   const b=await read(request);if(!Number.isInteger(b.fewThreshold)||b.fewThreshold<1||b.fewThreshold>1000||!Number.isInteger(b.stockFreshHours)||b.stockFreshHours<1||b.stockFreshHours>168)reject('Kontrollér lagergrænse og gyldighed.');await stmt(db,"INSERT INTO settings(key,value) VALUES('commerce',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",JSON.stringify({fewThreshold:b.fewThreshold,stockFreshHours:b.stockFreshHours})).run();return respond({ok:true});
  }
  if(path==='/api/orders'&&request.method==='POST'){
-  const b=await read(request),id=clean(b.id,40);if(!/^[a-f0-9-]{36}$/.test(id))reject('Invalid order reference.');const prior=await stmt(db,'SELECT id,user_id,reference,status FROM trade_orders WHERE id=?',id).first();if(prior){if(prior.user_id!==user.id)reject('Invalid order reference.',409);return respond({order:prior})}
+  const b=await read(request),id=clean(b.id,40);if(!/^[a-f0-9-]{36}$/.test(id))reject('Invalid order reference.');
+  // A seller/admin can place an order for an approved customer's account instead of their own.
+  let targetUserId=user.id,targetEmail=user.email,placedBy=null;
+  if(b.customerId!==undefined&&b.customerId!==null&&b.customerId!==''){
+   if(!['admin','seller'].includes(user.role))reject('Only sellers or administrators can place an order for another account.',403);
+   const customerId=clean(String(b.customerId),40);
+   const target=await stmt(db,"SELECT user_id FROM partners WHERE user_id=? AND status='approved'",customerId).first();if(!target)reject('Choose an approved customer.');
+   const account=await stmt(db,'SELECT email FROM accounts WHERE user_id=?',customerId).first();if(!account)reject('Choose an approved customer.');
+   targetUserId=customerId;targetEmail=account.email;placedBy=user.id;
+  }else if(user.role==='seller')reject('Choose a customer to place this order for.');
+  const prior=await stmt(db,'SELECT id,user_id,reference,status FROM trade_orders WHERE id=?',id).first();if(prior){if(prior.user_id!==targetUserId)reject('Invalid order reference.',409);return respond({order:prior})}
   const conf=await db.prepare("SELECT value FROM settings WHERE key='prices'").first();const pricing=conf?JSON.parse(conf.value):{};if(!pricing.enabled)reject('Trade prices must be activated before orders can be submitted.');
   if(!Array.isArray(b.lines)||!b.lines.length||b.lines.length>100)reject('Choose between 1 and 100 order lines.');
   const c=await catalogue(db),skus=new Map(c.products.flatMap(p=>p.variants.flatMap(v=>v.items.map(i=>[i.sku,{model:p.id,name:p.name,colour:v.name,size:i.size}])))),prices=new Map((await all(db,'SELECT sku,amount FROM prices')).map(r=>[r.sku,r.amount]));const seen=new Set(),lines=[];
   for(const l of b.lines){if(!skus.has(l.sku)||seen.has(l.sku)||!Number.isInteger(l.qty)||l.qty<1||l.qty>100)reject('An item is unavailable or its quantity is invalid. Review your selection.');seen.add(l.sku);if(!prices.has(l.sku))reject('A selected item has no confirmed price. Please contact DOOK.');lines.push({sku:l.sku,...skus.get(l.sku),qty:l.qty,unitPrice:prices.get(l.sku)})}
-  const company=clean(b.company,200),delivery=clean(b.delivery,1500),note=clean(b.note||'',2000);if(!company||!delivery)reject('Enter your company and delivery address.');const partner=await stmt(db,'SELECT company,name FROM partners WHERE user_id=?',user.id).first();const ref='WEB-'+id.slice(0,8).toUpperCase();const payload={company,delivery,note,partner:partner||null,email:user.email,currency:pricing.currency,tax:pricing.tax,lines,total:Math.round(lines.reduce((s,l)=>s+l.qty*l.unitPrice,0)*100)/100};
-  await stmt(db,"INSERT INTO trade_orders(id,user_id,reference,payload,status,created_at,updated_at) VALUES(?,?,?,?,'pending',?,?)",id,user.id,ref,JSON.stringify(payload),now(),now()).run();return respond({order:{id,reference:ref,status:'pending'}},201);
+  const company=clean(b.company,200),delivery=clean(b.delivery,1500),note=clean(b.note||'',2000);if(!company||!delivery)reject('Enter your company and delivery address.');const partner=await stmt(db,'SELECT company,name FROM partners WHERE user_id=?',targetUserId).first();const ref='WEB-'+id.slice(0,8).toUpperCase();const payload={company,delivery,note,partner:partner||null,email:targetEmail,currency:pricing.currency,tax:pricing.tax,lines,total:Math.round(lines.reduce((s,l)=>s+l.qty*l.unitPrice,0)*100)/100};
+  await stmt(db,"INSERT INTO trade_orders(id,user_id,reference,payload,status,placed_by,created_at,updated_at) VALUES(?,?,?,?,'pending',?,?,?)",id,targetUserId,ref,JSON.stringify(payload),placedBy,now(),now()).run();return respond({order:{id,reference:ref,status:'pending'}},201);
  }
- if(path==='/api/orders'&&request.method==='GET')return respond({orders:(await all(db,'SELECT id,reference,payload,status,created_at FROM trade_orders WHERE user_id=? ORDER BY created_at DESC LIMIT 100',user.id)).map(r=>({...r,...JSON.parse(r.payload),payload:undefined}))});
- if(path==='/api/manage/orders'&&request.method==='GET')return respond({orders:(await all(db,'SELECT id,reference,payload,status,created_at FROM trade_orders ORDER BY created_at DESC LIMIT 300')).map(r=>({...r,...JSON.parse(r.payload),payload:undefined}))});
+ if(path==='/api/orders'&&request.method==='GET'){
+  const filterCol=user.role==='seller'?'placed_by':'user_id';
+  return respond({orders:(await all(db,`SELECT id,reference,payload,status,created_at,placed_by FROM trade_orders WHERE ${filterCol}=? ORDER BY created_at DESC LIMIT 100`,user.id)).map(r=>({...r,...JSON.parse(r.payload),payload:undefined}))});
+ }
+ if(path==='/api/manage/orders'&&request.method==='GET')return respond({orders:(await all(db,'SELECT trade_orders.id AS id,reference,payload,status,trade_orders.created_at AS created_at,placed_by,accounts.email AS placed_by_email FROM trade_orders LEFT JOIN accounts ON accounts.user_id=trade_orders.placed_by ORDER BY trade_orders.created_at DESC LIMIT 300')).map(r=>({...r,...JSON.parse(r.payload),payload:undefined}))});
  if(path==='/api/manage/order'&&request.method==='PUT'){const b=await read(request);if(!['pending','handled','cancelled'].includes(b.status))reject('Ugyldig ordrestatus.');await stmt(db,'UPDATE trade_orders SET status=?,updated_at=? WHERE id=?',b.status,now(),clean(b.id,40)).run();return respond({ok:true})}
  reject('Not found.',404);
 }

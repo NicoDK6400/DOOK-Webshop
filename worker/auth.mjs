@@ -65,21 +65,28 @@ export function clearSessionCookieHeader(request){
  return `${SESSION_COOKIE}=; Path=/; HttpOnly;${isHttps(request)?' Secure;':''} SameSite=Lax; Max-Age=0`;
 }
 
-// In-memory, per-process login throttle. Good enough for a single-container deployment;
-// resets on restart, which is an acceptable trade-off for not adding a new store.
-const failures=new Map();
-export function loginLockedMs(email){
- const entry=failures.get(normalizeEmail(email));
- return entry?Math.max(0,entry.lockedUntil-Date.now()):0;
+// In-memory, per-process throttles, keyed by normalized email. Good enough for a
+// single-container deployment; resets on restart, an acceptable trade-off for not
+// adding a new store. Shared shape for login lockout, signup and password-reset-request
+// abuse (repeated probing/enumeration or inbox-flooding of the same email address).
+function createThrottle(){
+ const attempts=new Map();
+ return {
+  lockedMs(email){const entry=attempts.get(normalizeEmail(email));return entry?Math.max(0,entry.lockedUntil-Date.now()):0},
+  record(email){email=normalizeEmail(email);const entry=attempts.get(email)||{count:0,lockedUntil:0};entry.count++;if(entry.count>=5)entry.lockedUntil=Date.now()+Math.min(30*60000,2**(entry.count-5)*60000);attempts.set(email,entry)},
+  clear(email){attempts.delete(normalizeEmail(email))}
+ };
 }
-export function recordLoginFailure(email){
- email=normalizeEmail(email);
- const entry=failures.get(email)||{count:0,lockedUntil:0};
- entry.count++;
- if(entry.count>=5)entry.lockedUntil=Date.now()+Math.min(30*60000,2**(entry.count-5)*60000);
- failures.set(email,entry);
-}
-export function clearLoginFailures(email){failures.delete(normalizeEmail(email))}
+const loginThrottle=createThrottle();
+export const loginLockedMs=loginThrottle.lockedMs;
+export const recordLoginFailure=loginThrottle.record;
+export const clearLoginFailures=loginThrottle.clear;
+const signupThrottle=createThrottle();
+export const signupLockedMs=signupThrottle.lockedMs;
+export const recordSignupAttempt=signupThrottle.record;
+const resetRequestThrottle=createThrottle();
+export const resetRequestLockedMs=resetRequestThrottle.lockedMs;
+export const recordResetRequestAttempt=resetRequestThrottle.record;
 
 // One-time password-reset tokens: only the SHA-256 hash is stored, matching the
 // existing OWNER_ACTIVATION_TOKEN pattern. The raw token only ever lives in the emailed link.

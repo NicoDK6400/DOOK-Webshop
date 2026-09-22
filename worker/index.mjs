@@ -1,9 +1,12 @@
 import {commerce,mediaResponse} from './commerce.mjs';
-import {normalizeEmail,isValidEmail,hashPassword,verifyPassword,createSession,destroySession,getSessionUser,sessionIdFromRequest,sessionCookieHeader,clearSessionCookieHeader,loginLockedMs,recordLoginFailure,clearLoginFailures,createPasswordResetToken,consumePasswordResetToken} from './auth.mjs';
+import {normalizeEmail,isValidEmail,hashPassword,verifyPassword,createSession,destroySession,getSessionUser,sessionIdFromRequest,sessionCookieHeader,clearSessionCookieHeader,loginLockedMs,recordLoginFailure,clearLoginFailures,signupLockedMs,recordSignupAttempt,resetRequestLockedMs,recordResetRequestAttempt,createPasswordResetToken,consumePasswordResetToken} from './auth.mjs';
 import {sendOrderConfirmationEmail,sendPasswordResetEmail} from './mail.mjs';
+import {securityHeaders} from './security-headers.mjs';
 // Identity comes from a session cookie set by /api/login or /api/signup — see auth.mjs.
 const defaults={name:'',history:'',concept:'Danish eyewear with magnetic click-ons. Change your lenses while keeping your favourite frame.',why:'Switch from everyday glasses to sun lenses with one magnetic click. Your optician helps you find the right frame and fit.',instagram:'https://www.instagram.com/dook_denmark/',linkedin:'https://www.linkedin.com/company/dook-denmark/',facebook:'https://www.facebook.com/profile.php?id=61572809430865'};
-const json=(data,status=200,extraHeaders={})=>Response.json(data,{status,headers:{'Cache-Control':'private, no-store','Vary':'Cookie','X-Content-Type-Options':'nosniff',...extraHeaders}});
+// A JSON API response is never rendered as a page, so a page-level CSP would be
+// meaningless here — the other baseline headers (HSTS, frame/referrer/permissions) still apply.
+const json=(data,status=200,extraHeaders={})=>Response.json(data,{status,headers:{'Cache-Control':'private, no-store','Vary':'Cookie','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'strict-origin-when-cross-origin','Permissions-Policy':'camera=(), microphone=(), geolocation=()','Strict-Transport-Security':'max-age=63072000; includeSubDomains',...extraHeaders}});
 const fail=(message,status)=>{throw Object.assign(new Error(message),{status})};
 async function settings(db){const row=await db.prepare("SELECT value FROM settings WHERE key='prices'").first();return row?JSON.parse(row.value):{enabled:false,currency:'DKK',tax:'excl. VAT'}}
 async function roleFor(db,userId){
@@ -21,7 +24,11 @@ export default {async fetch(request,env){
  const url=new URL(request.url),path=url.pathname;
  if(path.startsWith('/media/'))return mediaResponse(request,env);
  if(!path.startsWith('/api/')){
-  if(path==='/'||path==='/index.html')return new Response(HTML,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-cache','X-Content-Type-Options':'nosniff'}});
+  if(path==='/'||path==='/index.html'){
+   // A tiny, non-executing config value the client's own cookie-consent banner decides whether to act on — never loads analytics itself.
+   const page=HTML.replace('</head>',`<script>window.GA_MEASUREMENT_ID=${JSON.stringify(env.GA_MEASUREMENT_ID||'')}</script></head>`);
+   return new Response(page,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-cache',...securityHeaders(env)}});
+  }
   return env.ASSETS?env.ASSETS.fetch(request):new Response('Not found',{status:404});
  }
  try{
@@ -54,9 +61,10 @@ export default {async fetch(request,env){
   }
   if(path==='/api/signup'&&request.method==='POST'){
    const b=await body(request),email=normalizeEmail(b.email);
+   const signupLocked=signupLockedMs(email);if(signupLocked>0)fail('Too many attempts. Try again in '+Math.ceil(signupLocked/60000)+' minute(s).',429);
    if(!isValidEmail(email))fail('Enter a valid email address.',400);
    if(typeof b.password!=='string'||b.password.length<10||b.password.length>200)fail('Choose a password with at least 10 characters.',400);
-   if(await env.DB.prepare('SELECT user_id FROM accounts WHERE email=?').bind(email).first())fail('An account with this email already exists.',409);
+   if(await env.DB.prepare('SELECT user_id FROM accounts WHERE email=?').bind(email).first()){recordSignupAttempt(email);fail('An account with this email already exists.',409)}
    const id=crypto.randomUUID();
    await env.DB.prepare('INSERT INTO accounts(user_id,email,password_hash,created_at) VALUES(?,?,?,?)').bind(id,email,await hashPassword(b.password),new Date().toISOString()).run();
    const session=await createSession(env.DB,id);
@@ -78,6 +86,8 @@ export default {async fetch(request,env){
   }
   if(path==='/api/request-password-reset'&&request.method==='POST'){
    const b=await body(request),email=normalizeEmail(b.email);
+   const resetLocked=resetRequestLockedMs(email);if(resetLocked>0)fail('Too many attempts. Try again in '+Math.ceil(resetLocked/60000)+' minute(s).',429);
+   recordResetRequestAttempt(email);
    const row=await env.DB.prepare('SELECT user_id FROM accounts WHERE email=?').bind(email).first();
    if(row){const token=await createPasswordResetToken(env.DB,row.user_id);sendPasswordResetEmail(email,url.origin+'/#reset-password/'+token).catch(()=>{})}
    return json({ok:true});
@@ -108,9 +118,13 @@ export default {async fetch(request,env){
    await env.DB.prepare("INSERT INTO partners(user_id,email,name,company,status) VALUES(?,?,?,?,'pending') ON CONFLICT(user_id) DO UPDATE SET email=excluded.email,name=excluded.name,company=excluded.company").bind(user.id,user.email,name,company).run();return json({ok:true});
   }
   if(path==='/api/prices'&&request.method==='GET'){
-   if(!['admin','approved'].includes(user.role))fail('Your company needs approval before prices are available.',403);
+   if(!['admin','approved','seller'].includes(user.role))fail('Your company needs approval before prices are available.',403);
    const config=await settings(env.DB);if(!config.enabled&&user.role!=='admin')return json({prices:[],config});
    return json({prices:(await env.DB.prepare('SELECT sku,model,colour,description,amount FROM prices ORDER BY sku').all()).results,config});
+  }
+  if(path==='/api/customers'&&request.method==='GET'){
+   if(!['admin','seller'].includes(user.role))fail('Administrator or seller access required.',403);
+   return json({customers:(await env.DB.prepare("SELECT user_id,email,name,company FROM partners WHERE status='approved' ORDER BY company").all()).results});
   }
   if(user.role!=='admin')fail('Administrator access required.',403);
   if(path==='/api/admin/news'&&request.method==='GET'){
@@ -135,6 +149,14 @@ export default {async fetch(request,env){
   if(path==='/api/admin/partner'&&request.method==='PUT'){
    const b=await body(request);if(!['approved','revoked'].includes(b.status))fail('Invalid status.',400);
    const result=await env.DB.prepare('UPDATE partners SET status=? WHERE user_id=?').bind(b.status,str(b.id,200)).run();if(!result.meta.changes)fail('Customer not found.',404);return json({ok:true});
+  }
+  if(path==='/api/admin/seller'&&request.method==='POST'){
+   const b=await body(request),email=normalizeEmail(b.email);
+   if(!isValidEmail(email))fail('Enter a valid email address.',400);
+   const account=await env.DB.prepare('SELECT user_id FROM accounts WHERE email=?').bind(email).first();
+   if(!account)fail('This person needs to sign up for an account first, then you can grant seller access.',404);
+   await env.DB.prepare("INSERT INTO partners(user_id,email,name,company,status) VALUES(?,?,'','DOOK','seller') ON CONFLICT(user_id) DO UPDATE SET email=excluded.email,status='seller'").bind(account.user_id,email).run();
+   return json({ok:true});
   }
   if(path==='/api/admin/pricing'&&request.method==='PUT'){
    const b=await body(request);if(!['DKK','EUR'].includes(b.currency)||typeof b.enabled!=='boolean'||!['excl. VAT','incl. VAT'].includes(b.tax))fail('Check currency and VAT settings.',400);

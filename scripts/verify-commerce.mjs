@@ -59,6 +59,28 @@ product.version=2;product.active=false;assert.equal((await call('/api/manage/pro
 assert.equal((await call('/api/orders','partner','POST',{...order,id:crypto.randomUUID()})).status,400);assert.equal((await call('/api/manage/orders','owner')).data.orders[0].total,400);
 product.version=3;product.active=true;assert.equal((await call('/api/manage/product','owner','PUT',product)).status,200);
 const duplicate=structuredClone(product);duplicate.id='DUPLICATE';duplicate.version=0;assert.equal((await call('/api/manage/product','owner','PUT',duplicate)).status,400);
+
+// --- Seller role: browse trade prices and place orders for an approved customer ---
+assert.equal((await call('/api/admin/seller','partner','POST',{email:'someone@example.com'})).status,403,'only admins can grant seller access');
+assert.equal((await call('/api/admin/seller','owner','POST',{email:'nobody-yet@example.com'})).status,404,'the target must already have an account');
+await ensureUser('seller');
+assert.equal((await call('/api/admin/seller','owner','POST',{email:'seller@example.com'})).status,200);
+assert.equal((await call('/api/prices','seller')).status,200,'sellers can see trade prices');
+assert.equal((await call('/api/customers','partner')).status,403,'a regular partner cannot list customers');
+const customers=(await call('/api/customers','seller')).data.customers,partnerId=await idOf('partner');
+assert.ok(customers.some(c=>c.user_id===partnerId));
+const sellerOrder={id:crypto.randomUUID(),customerId:await idOf('partner'),company:'Optician',delivery:'Street 1',lines:[{sku:'TESTFRAME-49-BLUE',qty:1,unitPrice:1}]};
+assert.equal((await call('/api/orders','partner','POST',{...sellerOrder,id:crypto.randomUUID(),customerId:await idOf('owner')})).status,403,'an approved partner cannot place an order for someone else');
+assert.equal((await call('/api/orders','seller','POST',{...sellerOrder,customerId:undefined})).status,400,'a seller must choose a customer');
+assert.equal((await call('/api/orders','seller','POST',sellerOrder)).status,201);
+const placedOrder=(await call('/api/manage/orders','owner')).data.orders.find(o=>o.id===sellerOrder.id);
+assert.equal(placedOrder.email,'partner@example.com','the order carries the customer\'s email, not the seller\'s');
+assert.equal(placedOrder.placed_by_email,'seller@example.com');
+assert.ok((await call('/api/orders','partner')).data.orders.some(o=>o.id===sellerOrder.id),'the customer sees the order under their own account');
+assert.ok((await call('/api/orders','seller')).data.orders.some(o=>o.id===sellerOrder.id),'the seller sees the order they placed');
+await call('/api/admin/partner','owner','PUT',{id:await idOf('seller'),status:'revoked'});
+assert.equal((await call('/api/prices','seller')).status,403,'revoking removes seller access');
+
 const ownerCookie=(await ensureUser('owner')).cookie;
 const headers={'origin':'https://test.local',cookie:ownerCookie,'content-type':'image/webp','x-file-name':'test.webp'};
 const upload=await worker.fetch(new Request('https://test.local/api/manage/media',{method:'POST',headers,body:readFileSync('public/assets/a002.webp')}),env);assert.equal(upload.status,201);const media=await upload.json();assert.ok(files.size===1);assert.equal((await worker.fetch(new Request('https://test.local'+media.url),env)).status,200);
@@ -101,4 +123,4 @@ assert.equal((await (await worker.fetch(new Request('https://test.local/api/me',
 assert.equal((await post('/api/logout',{},{cookie:sessionCookie})).status,200);
 assert.equal((await (await worker.fetch(new Request('https://test.local/api/me',{headers:{cookie:sessionCookie}}),env)).json()).user,null);
 
-console.log('PASS: existing 540 prices + 45 models; catalogue CRUD, duplicate SKU and stale edit protection; admin-only writes/upload; CSRF; private prices and inventory; stock thresholds/staleness; archive/restore; durable, server-priced, idempotent orders and owner-scoped reads; validated R2 images; news draft access; signup/login/logout, lockout after repeated failures, and single-use password reset.');
+console.log('PASS: existing 540 prices + 45 models; catalogue CRUD, duplicate SKU and stale edit protection; admin-only writes/upload; CSRF; private prices and inventory; stock thresholds/staleness; archive/restore; durable, server-priced, idempotent orders and owner-scoped reads; validated R2 images; news draft access; signup/login/logout, lockout after repeated failures, and single-use password reset; seller role granting/revoking and placing orders for an approved customer.');
