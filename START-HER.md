@@ -85,6 +85,14 @@ Hjemmesiden er selv-hostet: en almindelig Node.js-server, en SQLite-databasefil 
 3. Opret en konto på `/#signup`, og åbn derefter `/#activate/<OWNER_ACTIVATION_TOKEN>` for at blive administrator.
 4. Skal restore.sql-eksporten (540 forhandlerpriser) importeres, kør `npm run import-legacy-data` (eller `docker compose exec app npm run import-legacy-data`).
 5. Skal `database/ean-import.csv` (540 EAN-numre, forberedt til Uniconta) importeres, kør `npm run import-ean`. Det er sikkert at køre flere gange, og rører kun EAN-feltet — aldrig priser eller lager.
+6. `docker compose up` starter automatisk også en `backup`-tjeneste, der hver 24. time (kan ændres via `BACKUP_INTERVAL_HOURS` i `.env`) tager en sikker kopi af databasen og billedmapperne til `./backups/<tidspunkt>/` på serveren — uden for selve Docker-volumet, så en fejl i volumet ikke også ødelægger backuppen. De 14 seneste beholdes (`BACKUP_KEEP`); ældre ryddes automatisk. **Kopiér selv `./backups/`-mappen et sted uden for serveren en gang imellem** (fx til jeres eget drev) — hvis hele serveren går ned, er en backup, der kun ligger på samme server, ikke meget værd.
+
+### Gendan fra en backup
+
+1. Stop hjemmesiden: `docker compose down`.
+2. Find den ønskede backup i `./backups/<tidspunkt>/` — den indeholder `dook.sqlite` og en `media`-mappe.
+3. Kopiér `dook.sqlite` og `media/` ind i Docker-volumet `dook-data` (fx `docker compose run --rm -v ./backups/<tidspunkt>:/restore app sh -c "cp /restore/dook.sqlite /data/dook.sqlite && cp -r /restore/media /data/media"`), og erstat det, der allerede ligger der.
+4. Start hjemmesiden igen: `docker compose up`.
 
 Uden Docker: `npm ci && npm run build && npm start` kører den samme server direkte (kræver Node 22+, som har SQLite indbygget — intet andet skal installeres).
 
