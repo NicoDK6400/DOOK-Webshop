@@ -1,5 +1,5 @@
 import {commerce,mediaResponse} from './commerce.mjs';
-import {normalizeEmail,isValidEmail,hashPassword,verifyPassword,createSession,destroySession,getSessionUser,sessionIdFromRequest,sessionCookieHeader,clearSessionCookieHeader,loginLockedMs,recordLoginFailure,clearLoginFailures,signupLockedMs,recordSignupAttempt,resetRequestLockedMs,recordResetRequestAttempt,createPasswordResetToken,consumePasswordResetToken} from './auth.mjs';
+import {normalizeEmail,isValidEmail,hashPassword,verifyPassword,createSession,destroySession,getSessionUser,sessionIdFromRequest,sessionCookieHeader,clearSessionCookieHeader,loginLockedMs,recordLoginFailure,clearLoginFailures,signupLockedMs,recordSignupAttempt,resetRequestLockedMs,recordResetRequestAttempt,createPasswordResetToken,consumePasswordResetToken,accessRequestRateLimit} from './auth.mjs';
 import {sendOrderConfirmationEmail,sendPasswordResetEmail} from './mail.mjs';
 import {securityHeaders} from './security-headers.mjs';
 // Identity comes from a session cookie set by /api/login or /api/signup — see auth.mjs.
@@ -117,6 +117,7 @@ export default {async fetch(request,env){
    return json({ok:true});
   }
   if(path==='/api/access-request'&&request.method==='POST'){
+   if(!accessRequestRateLimit(user.id))fail('Too many requests. Please wait a while before trying again.',429);
    const b=await body(request),company=str(b.company,200),name=str(b.name,200);if(!company||!name)fail('Enter your name and company.',400);
    await env.DB.prepare("INSERT INTO partners(user_id,email,name,company,status) VALUES(?,?,?,?,'pending') ON CONFLICT(user_id) DO UPDATE SET email=excluded.email,name=excluded.name,company=excluded.company").bind(user.id,user.email,name,company).run();return json({ok:true});
   }

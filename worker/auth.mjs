@@ -102,6 +102,10 @@ function createRateLimit(max,windowMs){
 // 30 new order requests per account per hour — generous for a seller placing several
 // orders across different customers in a shift, but caps a compromised/scripted account.
 export const orderRateLimit=createRateLimit(30,60*60000);
+// A partner application is an upsert on one row per account (never creates new rows), but
+// still has no reason to be called more than a handful of times an hour by a real person
+// correcting a typo — this just stops a scripted loop hammering the write.
+export const accessRequestRateLimit=createRateLimit(5,60*60000);
 
 // One-time password-reset tokens: only the SHA-256 hash is stored, matching the
 // existing OWNER_ACTIVATION_TOKEN pattern. The raw token only ever lives in the emailed link.
