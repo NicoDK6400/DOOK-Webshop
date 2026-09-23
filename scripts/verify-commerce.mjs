@@ -60,6 +60,23 @@ assert.equal((await call('/api/orders','partner','POST',{...order,id:crypto.rand
 product.version=3;product.active=true;assert.equal((await call('/api/manage/product','owner','PUT',product)).status,200);
 const duplicate=structuredClone(product);duplicate.id='DUPLICATE';duplicate.version=0;assert.equal((await call('/api/manage/product','owner','PUT',duplicate)).status,400);
 
+// --- EAN: optional per-item Uniconta-matching identifier, admin-only ---
+const eanProduct={id:'EANTEST',name:'EAN test frame',description:'',category:'TEST',material:'',active:true,referenceImage:'',referenceColour:'',pairedImage:'',version:0,variants:[{code:'BLUE',name:'Blue',images:[],items:[{sku:'EANTEST-49-BLUE',size:'49',amount:100,stock:1,ean:'not-digits'}]}]};
+assert.equal((await call('/api/manage/product','owner','PUT',eanProduct)).status,400,'a non-numeric EAN is rejected');
+eanProduct.variants[0].items[0].ean='1234567890123456';
+assert.equal((await call('/api/manage/product','owner','PUT',eanProduct)).status,400,'a 16-digit EAN is rejected');
+eanProduct.variants[0].items[0].ean='5744006890009';
+eanProduct.variants[0].items.push({sku:'EANTEST-51-BLUE',size:'51',amount:100,stock:1,ean:'5744006890009'});
+assert.equal((await call('/api/manage/product','owner','PUT',eanProduct)).status,400,'the same EAN cannot repeat within one product');
+eanProduct.variants[0].items[1].ean='5744006890276';
+assert.equal((await call('/api/manage/product','owner','PUT',eanProduct)).status,200);
+const eanManaged=(await call('/api/manage/catalogue','owner')).data;
+assert.equal(eanManaged.inventory.find(x=>x.sku==='EANTEST-49-BLUE').ean,'5744006890009');
+assert.equal(eanManaged.inventory.find(x=>x.sku==='EANTEST-51-BLUE').ean,'5744006890276');
+const eanPublic=(await call('/api/catalogue')).data,eanInventory=(await call('/api/inventory','partner')).data;
+assert.ok(!JSON.stringify(eanPublic).includes('"ean"')&&!JSON.stringify(eanPublic).includes('5744006890009'),'EAN never reaches the public catalogue');
+assert.ok(!JSON.stringify(eanInventory).includes('"ean"')&&!JSON.stringify(eanInventory).includes('5744006890009'),'EAN never reaches the partner-facing inventory feed');
+
 // --- Seller role: browse trade prices and place orders for an approved customer ---
 assert.equal((await call('/api/admin/seller','partner','POST',{email:'someone@example.com'})).status,403,'only admins can grant seller access');
 assert.equal((await call('/api/admin/seller','owner','POST',{email:'nobody-yet@example.com'})).status,404,'the target must already have an account');
@@ -80,6 +97,26 @@ assert.ok((await call('/api/orders','partner')).data.orders.some(o=>o.id===selle
 assert.ok((await call('/api/orders','seller')).data.orders.some(o=>o.id===sellerOrder.id),'the seller sees the order they placed');
 await call('/api/admin/partner','owner','PUT',{id:await idOf('seller'),status:'revoked'});
 assert.equal((await call('/api/prices','seller')).status,403,'revoking removes seller access');
+
+// --- Rate limiting: caps new order requests per account; idempotent retries are exempt ---
+let hitOrderLimit=false;
+for(let i=0;i<40&&!hitOrderLimit;i++){
+ const r=await call('/api/orders','partner','POST',{id:crypto.randomUUID(),company:'Optician',delivery:'Street 1',lines:[{sku:'TESTFRAME-49-BLUE',qty:1,unitPrice:1}]});
+ if(r.status===429)hitOrderLimit=true;
+}
+assert.ok(hitOrderLimit,'the account is rate-limited after enough new order requests');
+assert.equal((await call('/api/orders','partner','POST',order)).status,200,'retrying an existing order id is exempt from the rate limit, even once limited');
+assert.equal((await call('/api/orders','owner','POST',{id:crypto.randomUUID(),company:'Optician',delivery:'Street 1',lines:[{sku:'TESTFRAME-49-BLUE',qty:1,unitPrice:1}]})).status,201,'a different account is unaffected by another account\'s rate limit');
+
+// --- Rate limiting: caps partner application submissions per account ---
+await ensureUser('spammyapplicant');
+let hitAccessLimit=false;
+for(let i=0;i<10&&!hitAccessLimit;i++){
+ const r=await call('/api/access-request','spammyapplicant','POST',{company:'Spam Optik',name:'Spammy'});
+ if(r.status===429)hitAccessLimit=true;
+}
+assert.ok(hitAccessLimit,'the account is rate-limited after enough access-request submissions');
+assert.equal((await call('/api/access-request','owner','POST',{company:'Owner Test',name:'Owner'})).status,200,'a different account is unaffected by another account\'s rate limit');
 
 const ownerCookie=(await ensureUser('owner')).cookie;
 const headers={'origin':'https://test.local',cookie:ownerCookie,'content-type':'image/webp','x-file-name':'test.webp'};
@@ -123,4 +160,4 @@ assert.equal((await (await worker.fetch(new Request('https://test.local/api/me',
 assert.equal((await post('/api/logout',{},{cookie:sessionCookie})).status,200);
 assert.equal((await (await worker.fetch(new Request('https://test.local/api/me',{headers:{cookie:sessionCookie}}),env)).json()).user,null);
 
-console.log('PASS: existing 540 prices + 45 models; catalogue CRUD, duplicate SKU and stale edit protection; admin-only writes/upload; CSRF; private prices and inventory; stock thresholds/staleness; archive/restore; durable, server-priced, idempotent orders and owner-scoped reads; validated R2 images; news draft access; signup/login/logout, lockout after repeated failures, and single-use password reset; seller role granting/revoking and placing orders for an approved customer.');
+console.log('PASS: existing 540 prices + 45 models; catalogue CRUD, duplicate SKU and stale edit protection; admin-only writes/upload; CSRF; private prices and inventory; stock thresholds/staleness; archive/restore; durable, server-priced, idempotent orders and owner-scoped reads; validated R2 images; news draft access; signup/login/logout, lockout after repeated failures, and single-use password reset; seller role granting/revoking and placing orders for an approved customer; EAN format/uniqueness validation kept out of public and partner-facing endpoints; per-account order and access-request rate limiting with idempotent order retries exempt.');

@@ -17,5 +17,19 @@ services:
       - GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID}
     restart: unless-stopped
 
+  backup:
+    build: .
+    volumes:
+      - dook-data:/data
+      - ./backups:/backups
+    environment:
+      - DB_PATH=/data/dook.sqlite
+      - MEDIA_PATH=/data/media
+      - BACKUP_DIR=/backups
+      - BACKUP_KEEP=${BACKUP_KEEP:-14}
+      - BACKUP_INTERVAL_HOURS=${BACKUP_INTERVAL_HOURS:-24}
+    entrypoint: ["node", "scripts/backup-loop.mjs"]
+    restart: unless-stopped
+
 volumes:
   dook-data:

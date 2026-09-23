@@ -88,6 +88,25 @@ const resetRequestThrottle=createThrottle();
 export const resetRequestLockedMs=resetRequestThrottle.lockedMs;
 export const recordResetRequestAttempt=resetRequestThrottle.record;
 
+// A sliding-window rate limit for a legitimate, repeatable action — unlike createThrottle
+// (which locks out after repeated FAILURES until explicitly cleared), this just caps how
+// often the action can happen per key, and allows more again as the window passes.
+function createRateLimit(max,windowMs){
+ const hits=new Map();
+ return key=>{
+  const now=Date.now(),recent=(hits.get(key)||[]).filter(t=>now-t<windowMs);
+  if(recent.length>=max)return false;
+  recent.push(now);hits.set(key,recent);return true;
+ };
+}
+// 30 new order requests per account per hour — generous for a seller placing several
+// orders across different customers in a shift, but caps a compromised/scripted account.
+export const orderRateLimit=createRateLimit(30,60*60000);
+// A partner application is an upsert on one row per account (never creates new rows), but
+// still has no reason to be called more than a handful of times an hour by a real person
+// correcting a typo — this just stops a scripted loop hammering the write.
+export const accessRequestRateLimit=createRateLimit(5,60*60000);
+
 // One-time password-reset tokens: only the SHA-256 hash is stored, matching the
 // existing OWNER_ACTIVATION_TOKEN pattern. The raw token only ever lives in the emailed link.
 export async function createPasswordResetToken(db,userId,maxAgeMinutes=30){
