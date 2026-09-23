@@ -1,4 +1,5 @@
 import {catalogueSeed,categorySeed} from './catalogue-seed.mjs';
+import {orderRateLimit} from './auth.mjs';
 const respond=(x,status=200)=>Response.json(x,{status,headers:{'Cache-Control':'private, no-store','Vary':'Cookie','X-Content-Type-Options':'nosniff'}});
 const reject=(message,status=400)=>{throw Object.assign(new Error(message),{status})};
 const clean=(v,n=200)=>{if(typeof v!=='string'||v.length>n)reject('Kontrollér felterne.');return v.trim()};
@@ -90,6 +91,9 @@ export async function commerce(request,env,user){
    targetUserId=customerId;targetEmail=account.email;placedBy=user.id;
   }else if(user.role==='seller')reject('Choose a customer to place this order for.');
   const prior=await stmt(db,'SELECT id,user_id,reference,status FROM trade_orders WHERE id=?',id).first();if(prior){if(prior.user_id!==targetUserId)reject('Invalid order reference.',409);return respond({order:prior})}
+  // Only genuinely new orders count against the limit — retrying the same id (e.g. after a
+  // dropped connection) always reaches the idempotent return above and is never throttled.
+  if(!orderRateLimit(user.id))reject('Too many order requests from this account. Please wait a while before trying again, or contact DOOK directly.',429);
   const conf=await db.prepare("SELECT value FROM settings WHERE key='prices'").first();const pricing=conf?JSON.parse(conf.value):{};if(!pricing.enabled)reject('Trade prices must be activated before orders can be submitted.');
   if(!Array.isArray(b.lines)||!b.lines.length||b.lines.length>100)reject('Choose between 1 and 100 order lines.');
   const c=await catalogue(db),skus=new Map(c.products.flatMap(p=>p.variants.flatMap(v=>v.items.map(i=>[i.sku,{model:p.id,name:p.name,colour:v.name,size:i.size}])))),prices=new Map((await all(db,'SELECT sku,amount FROM prices')).map(r=>[r.sku,r.amount]));const seen=new Set(),lines=[];

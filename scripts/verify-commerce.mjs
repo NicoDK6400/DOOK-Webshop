@@ -98,6 +98,16 @@ assert.ok((await call('/api/orders','seller')).data.orders.some(o=>o.id===seller
 await call('/api/admin/partner','owner','PUT',{id:await idOf('seller'),status:'revoked'});
 assert.equal((await call('/api/prices','seller')).status,403,'revoking removes seller access');
 
+// --- Rate limiting: caps new order requests per account; idempotent retries are exempt ---
+let hitOrderLimit=false;
+for(let i=0;i<40&&!hitOrderLimit;i++){
+ const r=await call('/api/orders','partner','POST',{id:crypto.randomUUID(),company:'Optician',delivery:'Street 1',lines:[{sku:'TESTFRAME-49-BLUE',qty:1,unitPrice:1}]});
+ if(r.status===429)hitOrderLimit=true;
+}
+assert.ok(hitOrderLimit,'the account is rate-limited after enough new order requests');
+assert.equal((await call('/api/orders','partner','POST',order)).status,200,'retrying an existing order id is exempt from the rate limit, even once limited');
+assert.equal((await call('/api/orders','owner','POST',{id:crypto.randomUUID(),company:'Optician',delivery:'Street 1',lines:[{sku:'TESTFRAME-49-BLUE',qty:1,unitPrice:1}]})).status,201,'a different account is unaffected by another account\'s rate limit');
+
 const ownerCookie=(await ensureUser('owner')).cookie;
 const headers={'origin':'https://test.local',cookie:ownerCookie,'content-type':'image/webp','x-file-name':'test.webp'};
 const upload=await worker.fetch(new Request('https://test.local/api/manage/media',{method:'POST',headers,body:readFileSync('public/assets/a002.webp')}),env);assert.equal(upload.status,201);const media=await upload.json();assert.ok(files.size===1);assert.equal((await worker.fetch(new Request('https://test.local'+media.url),env)).status,200);
@@ -140,4 +150,4 @@ assert.equal((await (await worker.fetch(new Request('https://test.local/api/me',
 assert.equal((await post('/api/logout',{},{cookie:sessionCookie})).status,200);
 assert.equal((await (await worker.fetch(new Request('https://test.local/api/me',{headers:{cookie:sessionCookie}}),env)).json()).user,null);
 
-console.log('PASS: existing 540 prices + 45 models; catalogue CRUD, duplicate SKU and stale edit protection; admin-only writes/upload; CSRF; private prices and inventory; stock thresholds/staleness; archive/restore; durable, server-priced, idempotent orders and owner-scoped reads; validated R2 images; news draft access; signup/login/logout, lockout after repeated failures, and single-use password reset; seller role granting/revoking and placing orders for an approved customer; EAN format/uniqueness validation kept out of public and partner-facing endpoints.');
+console.log('PASS: existing 540 prices + 45 models; catalogue CRUD, duplicate SKU and stale edit protection; admin-only writes/upload; CSRF; private prices and inventory; stock thresholds/staleness; archive/restore; durable, server-priced, idempotent orders and owner-scoped reads; validated R2 images; news draft access; signup/login/logout, lockout after repeated failures, and single-use password reset; seller role granting/revoking and placing orders for an approved customer; EAN format/uniqueness validation kept out of public and partner-facing endpoints; per-account order rate limiting with idempotent retries exempt.');
