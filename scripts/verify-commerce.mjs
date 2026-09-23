@@ -118,6 +118,13 @@ for(let i=0;i<10&&!hitAccessLimit;i++){
 assert.ok(hitAccessLimit,'the account is rate-limited after enough access-request submissions');
 assert.equal((await call('/api/access-request','owner','POST',{company:'Owner Test',name:'Owner'})).status,200,'a different account is unaffected by another account\'s rate limit');
 
+// --- Order line reference: a per-item note (e.g. an end customer/commission number) ---
+const referencedOrder={id:crypto.randomUUID(),company:'Optician',delivery:'Street 1',lines:[{sku:'TESTFRAME-49-BLUE',qty:1,unitPrice:1,reference:'8252 - Louise Hansen'}]};
+assert.equal((await call('/api/orders','owner','POST',referencedOrder)).status,201);
+const referencedFetched=(await call('/api/manage/orders','owner')).data.orders.find(o=>o.id===referencedOrder.id);
+assert.equal(referencedFetched.lines[0].reference,'8252 - Louise Hansen');
+assert.equal((await call('/api/orders','owner','POST',{id:crypto.randomUUID(),company:'Optician',delivery:'Street 1',lines:[{sku:'TESTFRAME-49-BLUE',qty:1,unitPrice:1,reference:'x'.repeat(250)}]})).status,400,'a reference over 200 characters is rejected');
+
 const ownerCookie=(await ensureUser('owner')).cookie;
 const headers={'origin':'https://test.local',cookie:ownerCookie,'content-type':'image/webp','x-file-name':'test.webp'};
 const upload=await worker.fetch(new Request('https://test.local/api/manage/media',{method:'POST',headers,body:readFileSync('public/assets/a002.webp')}),env);assert.equal(upload.status,201);const media=await upload.json();assert.ok(files.size===1);assert.equal((await worker.fetch(new Request('https://test.local'+media.url),env)).status,200);
@@ -160,4 +167,4 @@ assert.equal((await (await worker.fetch(new Request('https://test.local/api/me',
 assert.equal((await post('/api/logout',{},{cookie:sessionCookie})).status,200);
 assert.equal((await (await worker.fetch(new Request('https://test.local/api/me',{headers:{cookie:sessionCookie}}),env)).json()).user,null);
 
-console.log('PASS: existing 540 prices + 45 models; catalogue CRUD, duplicate SKU and stale edit protection; admin-only writes/upload; CSRF; private prices and inventory; stock thresholds/staleness; archive/restore; durable, server-priced, idempotent orders and owner-scoped reads; validated R2 images; news draft access; signup/login/logout, lockout after repeated failures, and single-use password reset; seller role granting/revoking and placing orders for an approved customer; EAN format/uniqueness validation kept out of public and partner-facing endpoints; per-account order and access-request rate limiting with idempotent order retries exempt.');
+console.log('PASS: existing 540 prices + 45 models; catalogue CRUD, duplicate SKU and stale edit protection; admin-only writes/upload; CSRF; private prices and inventory; stock thresholds/staleness; archive/restore; durable, server-priced, idempotent orders and owner-scoped reads; validated R2 images; news draft access; signup/login/logout, lockout after repeated failures, and single-use password reset; seller role granting/revoking and placing orders for an approved customer; EAN format/uniqueness validation kept out of public and partner-facing endpoints; per-account order and access-request rate limiting with idempotent order retries exempt; per-line order reference stored and length-validated.');
