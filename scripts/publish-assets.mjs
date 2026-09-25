@@ -4,7 +4,7 @@
 import {readFileSync,writeFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 
-export const ASSETS=['i18n.js','catalog.js','lenses.js','app.js','b2b.js','trade-catalog.js','shop.js','news.js','manage.js','style.css'];
+export const ASSETS=['i18n.js','catalog.js','lenses.js','app.js','b2b.js','trade-catalog.js','shop.js','manage.js','style.css'];
 
 export function publishAssets({sourceDir='public/',outputDir=sourceDir}={}){
  let page=readFileSync(sourceDir+'index.html','utf8');

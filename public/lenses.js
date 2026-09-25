@@ -12,6 +12,8 @@ window.dookLenses=[
  {name:'Clear anti blue light +1.0',detail:'Clear · +1.0',rgb:[126,154,154],opacity:.10,swatch:'#e8eded'},
  {name:'Blue graduated 01',detail:'Category 1 · Graduated',rgb:[90,131,154],opacity:.51,bottom:.23,swatch:'linear-gradient(#9aafbc,#d9e2e7)'}
 ];
+// Order matches window.dookLenses above; maps each preview lens to its DOOK item code.
+window.dookLensCodes=['GN01-3','MI01','BR01-GR-2','BR01-3','CL01-AB','GY01-GR-2','GY01-3-PL','YE01-NV','CL01-AB+1,0','BL01-GR-1'];
 function lensOptions(id){
  if(!['A001','AN001'].includes(id))return '';
  return `<section class="lens-options" aria-label="Choose DOOK lens colour"><div class="option-label"><span>DOOK lenses</span><strong class="selected-lens" aria-live="polite">${lensIndex<0?'Frame only':window.dookLenses[lensIndex].name}</strong></div><div class="lens-options-grid"><button type="button" class="lens-choice ${lensIndex<0?'selected':''}" data-dook-colour="-1" aria-pressed="${lensIndex<0}"><span class="lens-chip no-lens" aria-hidden="true"></span><span>Frame only<small>Without a DOOK</small></span></button>${window.dookLenses.map((lens,i)=>`<button type="button" class="lens-choice ${lensIndex===i?'selected':''}" data-dook-colour="${i}" aria-pressed="${lensIndex===i}"><span class="lens-chip" style="background:${lens.swatch}" aria-hidden="true"></span><span>${lens.name}<small>${lens.detail}</small></span></button>`).join('')}</div><p class="lens-preview-note">Illustrative fit and colours. Actual lenses may differ. Please confirm model, size and availability with DOOK.</p></section>`;
@@ -62,5 +64,16 @@ function lensOptions(id){
    }
   }
   result.composite=output.toDataURL('image/png');scenes.set(key,result);return result;
+ };
+ // A small tinted photo of each side (left/right), for a colour swatch thumbnail
+ // instead of a flat colour dot — reuses the same tinting as the on-frame preview.
+ window.dookSwatchImages=async(code)=>{
+  const idx=window.dookLensCodes.indexOf(code);
+  if(idx<0)return null;
+  const lens=window.dookLenses[idx];
+  try{
+   const [l,r]=await Promise.all(['l','r'].map(side=>clickOn(side,lens)));
+   return [l.toDataURL('image/png'),r.toDataURL('image/png')];
+  }catch{return null}
  };
 })();
