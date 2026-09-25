@@ -48,13 +48,7 @@ Redigér filerne uden hash i navnet, fx:
 - `public/news.js`: nyheder.
 - `worker/index.mjs`, `worker/commerce.mjs` og `worker/auth.mjs`: serverlogik, adgangskontrol og login.
 
-Filer som `app.<hash>.js` genereres automatisk og skal ikke redigeres manuelt — de ligger heller ikke i Git (kun de rene kildefiler ovenfor gør). `npm run dev` genererer dem selv ved opstart. Når du har ændret en kildefil, mens serveren allerede kører, opdateres de referencer, som `index.html` bruger, med:
-
-```sh
-node scripts/publish-assets.mjs
-```
-
-Genindlæs siden efter opdateringen. Scriptet opdaterer også CSS-referencen.
+`index.html` peger direkte på disse rene filnavne — under `npm run dev` skal du bare genindlæse siden efter en ændring, der sker ingen automatisk omskrivning af `index.html`. Filer med et hash i navnet (fx `app.<hash>.js`) opstår kun inde i `dist/`, når du kører `npm run build` til produktion — de bliver aldrig skrevet til `public/` eller committet til Git.
 
 ## Byg og kontrollér
 

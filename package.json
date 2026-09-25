@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/publish-assets.mjs && node scripts/build.mjs",
+    "build": "node scripts/build.mjs",
     "start": "node dist/server/serve.mjs",
     "import-legacy-data": "node scripts/import-legacy-data.mjs",
     "import-ean": "node scripts/import-ean.mjs",
