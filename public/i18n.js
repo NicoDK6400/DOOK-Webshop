@@ -1,6 +1,6 @@
 // Loaded before every other script so t()/currentLang/setLang() are globally available.
 // Only public + B2B customer-facing pages are translated — admin/seller tooling (manage.js,
-// adminPage()/fillAdmin() in b2b.js, newsEditor()) stays Danish-only, untouched, on purpose.
+// adminPage()/fillAdmin() in b2b.js) stays Danish-only, untouched, on purpose.
 const supportedLangs=['en','da','de'];
 const localeFor={en:'en-GB',da:'da-DK',de:'de-DE'};
 const translations={
@@ -24,7 +24,7 @@ const translations={
   'common.loadingCollection':'Loading collection…','common.colourLabel':'Colour','common.lensSize':'Lens size','common.viewEnquiry':'View enquiry','common.yourSelection':'Your selection',
   'home.topbar':'EYEWEAR. RECONSIDERED.','home.eyebrow':'DANISH DESIGN. YOUR PERSPECTIVE.','home.h1Line1':'One frame.','home.h1Line2':'More you.',
   'home.stageAriaSun':'DOOK A001 with magnetic sun click-ons','home.stageAriaClear':'DOOK A001 Havana frame',
-  'home.everyday':'Everyday','home.withDook':'With a DOOK','home.explore':'Explore the collection','home.collectionHeading':'The collection.',
+  'home.everyday':'Everyday','home.withDook':'With a DOOK','home.explore':'Explore the collection','home.someHeading':'SoMe','home.someEmpty':'Follow along on our social media.',
   'home.wayEyebrow':'THE DOOK WAY','home.wayLine1':'Less complication.','home.wayLine2':'More possibility.','home.wayCopy':'One frame. Magnetic click-ons. Ready for your everyday.','home.meetDook':'Meet DOOK',
   'contact.eyebrow':'CONTACT US','contact.h1':'Contact us.','contact.writeLabel':'WRITE TO US','contact.callLabel':'GIVE US A CALL','contact.findLabel':'FIND US','contact.country':'Denmark',
   'contact.firstName':'First name','contact.firstNamePh':'Your first name','contact.lastName':'Last name','contact.lastNamePh':'Your last name',
@@ -42,7 +42,7 @@ const translations={
   'detail.decreaseQty':'Decrease quantity','detail.increaseQty':'Increase quantity','detail.enquireFrame':'Enquire about this frame',
   'detail.supportPartner':'Your colour selection is included in the enquiry.','detail.supportPublic':'Ask your optician about fitting and availability.',
   'detail.designedInDenmark':'Designed in Denmark','detail.accordionSummary':'A frame. More possibilities.','detail.accordionCopy':'Match your DOOK click-on to the frame model and lens size.',
-  'detail.askMatchingDooks':'Ask about matching DOOKs','detail.moreFrames':'More frames.','detail.addedToast':'{qty} × {id} added.','detail.previewError':'The DOOK preview could not load. Please select a colour to try again.',
+  'detail.askMatchingDooks':'Ask about matching DOOKs','detail.moreFrames':'More frames.','detail.aboutFrame':'About this frame.','detail.aboutFrameDefault':'Thoughtfully designed eyewear with character, considered details and a magnetic click-on system.','detail.addedToast':'{qty} × {id} added.','detail.previewError':'The DOOK preview could not load. Please select a colour to try again.',
   'detail.frameOnly':'Frame only','detail.a012SizeNote':', lens size 50 mm','detail.enquireDraft':'Hello DOOK,\n\nI would like to know more about {id} in {name} ({code}){sizeNote}{lensDesc} and its matching click-ons.\nPlease confirm the compatible lens size and availability.\n\n',
   'partnerCollection.mailSubject':'DOOK collection enquiry','partnerCollection.mailGreeting':'Hello DOOK,\n\nI would like more information about the following frames:\n\n',
   'partnerCollection.mailFooter':'\n\nCompany:\nContact name:\nPhone:\n\nPlease share trade prices, available colours, sizes and availability.',
@@ -86,7 +86,7 @@ const translations={
   'common.saving':'Saving…','forgot.resetLinkSent':'If that email has an account, a reset link is on its way.','auth.resetSuccess':'Password updated. You can now log in.',
   'shop.catA':'A-models','shop.catAN':'AN-models','shop.catT':'T-models','shop.catTA':'TA-models','shop.catDooks':'DOOK’s',
   'shop.noPhotoYet':'Product photograph not yet available','shop.shownColour':'Photo shows a different colour: {colour}','shop.variant':'Variant','shop.addToSelection':'Add to selection',
-  'shop.coloursAria':'{id} colours','shop.quantityAria':'{id} quantity','shop.noMatches':'No matching models in this category. Try another category or search.',
+  'shop.coloursAria':'{id} colours','shop.quantityAria':'{id} quantity','shop.decreaseAria':'Decrease quantity for {id}','shop.increaseAria':'Increase quantity for {id}','shop.noMatches':'No matching models in this category. Try another category or search.',
   'shop.h1':'B2B shop','shop.b2bLogin':'B2B login','shop.checkingAccount':'Checking your account…','shop.exploreSignInNotice':'Explore the collection. Sign in as an approved partner to see trade prices and select products.',
   'shop.draftPricesReview':'Draft prices · Review and activate','shop.tradePricesUpdatingEnquiry':'Trade prices are being updated. You can still prepare an enquiry.',
   'shop.searchCategory':'Search this category','shop.searchPlaceholder2':'Model, colour or item number…','shop.askAbout':'Ask about {id}',
@@ -123,7 +123,7 @@ const translations={
   'common.loadingCollection':'Henter kollektion…','common.colourLabel':'Farve','common.lensSize':'Linsestørrelse','common.viewEnquiry':'Se forespørgsel','common.yourSelection':'Din kurv',
   'home.topbar':'BRILLER. GENTÆNKT.','home.eyebrow':'DANSK DESIGN. DIT PERSPEKTIV.','home.h1Line1':'Ét stel.','home.h1Line2':'Mere dig.',
   'home.stageAriaSun':'DOOK A001 med magnetiske solclick-ons','home.stageAriaClear':'DOOK A001 Havana-stel',
-  'home.everyday':'Hverdag','home.withDook':'Med en DOOK','home.explore':'Udforsk kollektionen','home.collectionHeading':'Kollektionen.',
+  'home.everyday':'Hverdag','home.withDook':'Med en DOOK','home.explore':'Udforsk kollektionen','home.someHeading':'SoMe','home.someEmpty':'Følg med på vores sociale medier.',
   'home.wayEyebrow':'DOOK-MÅDEN','home.wayLine1':'Mindre besvær.','home.wayLine2':'Flere muligheder.','home.wayCopy':'Ét stel. Magnetiske click-ons. Klar til din hverdag.','home.meetDook':'Mød DOOK',
   'contact.eyebrow':'KONTAKT OS','contact.h1':'Kontakt os.','contact.writeLabel':'SKRIV TIL OS','contact.callLabel':'RING TIL OS','contact.findLabel':'FIND OS','contact.country':'Danmark',
   'contact.firstName':'Fornavn','contact.firstNamePh':'Dit fornavn','contact.lastName':'Efternavn','contact.lastNamePh':'Dit efternavn',
@@ -141,7 +141,7 @@ const translations={
   'detail.decreaseQty':'Formindsk antal','detail.increaseQty':'Forøg antal','detail.enquireFrame':'Forespørg om dette stel',
   'detail.supportPartner':'Dit farvevalg er inkluderet i forespørgslen.','detail.supportPublic':'Spørg din optiker om pasform og tilgængelighed.',
   'detail.designedInDenmark':'Designet i Danmark','detail.accordionSummary':'Ét stel. Flere muligheder.','detail.accordionCopy':'Match din DOOK click-on til stelmodellen og linsestørrelsen.',
-  'detail.askMatchingDooks':'Spørg om matchende DOOK’s','detail.moreFrames':'Flere stel.','detail.addedToast':'{qty} × {id} tilføjet.','detail.previewError':'DOOK-forhåndsvisningen kunne ikke indlæses. Vælg en farve for at prøve igen.',
+  'detail.askMatchingDooks':'Spørg om matchende DOOK’s','detail.moreFrames':'Flere stel.','detail.aboutFrame':'Om dette stel.','detail.aboutFrameDefault':'Gennemtænkt design med karakter, gennemarbejdede detaljer og et magnetisk click-on-system.','detail.addedToast':'{qty} × {id} tilføjet.','detail.previewError':'DOOK-forhåndsvisningen kunne ikke indlæses. Vælg en farve for at prøve igen.',
   'detail.frameOnly':'Kun stel','detail.a012SizeNote':', linsestørrelse 50 mm','detail.enquireDraft':'Hej DOOK,\n\nJeg vil gerne vide mere om {id} i {name} ({code}){sizeNote}{lensDesc} og de matchende click-ons.\nBekræft venligst den kompatible linsestørrelse og tilgængelighed.\n\n',
   'partnerCollection.mailSubject':'DOOK kollektionsforespørgsel','partnerCollection.mailGreeting':'Hej DOOK,\n\nJeg vil gerne have mere information om følgende stel:\n\n',
   'partnerCollection.mailFooter':'\n\nFirma:\nKontaktnavn:\nTelefon:\n\nDel venligst erhvervspriser, tilgængelige farver, størrelser og tilgængelighed.',
@@ -185,7 +185,7 @@ const translations={
   'common.saving':'Gemmer…','forgot.resetLinkSent':'Hvis den e-mail har en konto, er et nulstillingslink på vej.','auth.resetSuccess':'Adgangskode opdateret. Du kan nu logge ind.',
   'shop.catA':'A-modeller','shop.catAN':'AN-modeller','shop.catT':'T-modeller','shop.catTA':'TA-modeller','shop.catDooks':'DOOK’s',
   'shop.noPhotoYet':'Produktfoto endnu ikke tilgængeligt','shop.shownColour':'Billedet viser en anden farve: {colour}','shop.variant':'Variant','shop.addToSelection':'Tilføj til kurv',
-  'shop.coloursAria':'{id} farver','shop.quantityAria':'{id} antal','shop.noMatches':'Ingen matchende modeller i denne kategori. Prøv en anden kategori eller søgning.',
+  'shop.coloursAria':'{id} farver','shop.quantityAria':'{id} antal','shop.decreaseAria':'Reducér antal for {id}','shop.increaseAria':'Forøg antal for {id}','shop.noMatches':'Ingen matchende modeller i denne kategori. Prøv en anden kategori eller søgning.',
   'shop.h1':'B2B-shop','shop.b2bLogin':'B2B-login','shop.checkingAccount':'Tjekker din konto…','shop.exploreSignInNotice':'Udforsk kollektionen. Log ind som godkendt partner for at se erhvervspriser og vælge produkter.',
   'shop.draftPricesReview':'Udkast-priser · Gennemgå og aktiver','shop.tradePricesUpdatingEnquiry':'Erhvervspriser opdateres. Du kan stadig forberede en forespørgsel.',
   'shop.searchCategory':'Søg i denne kategori','shop.searchPlaceholder2':'Model, farve eller varenummer…','shop.askAbout':'Spørg om {id}',
@@ -222,7 +222,7 @@ const translations={
   'common.loadingCollection':'Kollektion wird geladen…','common.colourLabel':'Farbe','common.lensSize':'Glasgröße','common.viewEnquiry':'Anfrage ansehen','common.yourSelection':'Ihre Auswahl',
   'home.topbar':'BRILLEN. NEU GEDACHT.','home.eyebrow':'DÄNISCHES DESIGN. IHRE PERSPEKTIVE.','home.h1Line1':'Eine Fassung.','home.h1Line2':'Mehr Sie.',
   'home.stageAriaSun':'DOOK A001 mit magnetischen Sonnen-Click-ons','home.stageAriaClear':'DOOK A001 Havanna-Fassung',
-  'home.everyday':'Alltag','home.withDook':'Mit einer DOOK','home.explore':'Kollektion entdecken','home.collectionHeading':'Die Kollektion.',
+  'home.everyday':'Alltag','home.withDook':'Mit einer DOOK','home.explore':'Kollektion entdecken','home.someHeading':'SoMe','home.someEmpty':'Folgen Sie uns in den sozialen Medien.',
   'home.wayEyebrow':'DER DOOK-WEG','home.wayLine1':'Weniger Aufwand.','home.wayLine2':'Mehr Möglichkeiten.','home.wayCopy':'Eine Fassung. Magnetische Click-ons. Bereit für Ihren Alltag.','home.meetDook':'DOOK entdecken',
   'contact.eyebrow':'KONTAKT','contact.h1':'Kontaktieren Sie uns.','contact.writeLabel':'SCHREIBEN SIE UNS','contact.callLabel':'RUFEN SIE UNS AN','contact.findLabel':'FINDEN SIE UNS','contact.country':'Dänemark',
   'contact.firstName':'Vorname','contact.firstNamePh':'Ihr Vorname','contact.lastName':'Nachname','contact.lastNamePh':'Ihr Nachname',
@@ -240,7 +240,7 @@ const translations={
   'detail.decreaseQty':'Menge verringern','detail.increaseQty':'Menge erhöhen','detail.enquireFrame':'Nach dieser Fassung fragen',
   'detail.supportPartner':'Ihre Farbauswahl ist in der Anfrage enthalten.','detail.supportPublic':'Fragen Sie Ihren Optiker nach Passform und Verfügbarkeit.',
   'detail.designedInDenmark':'Entworfen in Dänemark','detail.accordionSummary':'Eine Fassung. Mehr Möglichkeiten.','detail.accordionCopy':'Passen Sie Ihren DOOK-Click-on an das Fassungsmodell und die Glasgröße an.',
-  'detail.askMatchingDooks':'Nach passenden DOOK’s fragen','detail.moreFrames':'Weitere Fassungen.','detail.addedToast':'{qty} × {id} hinzugefügt.','detail.previewError':'Die DOOK-Vorschau konnte nicht geladen werden. Bitte wählen Sie eine Farbe, um es erneut zu versuchen.',
+  'detail.askMatchingDooks':'Nach passenden DOOK’s fragen','detail.moreFrames':'Weitere Fassungen.','detail.aboutFrame':'Über diese Fassung.','detail.aboutFrameDefault':'Durchdachtes Design mit Charakter, sorgfältigen Details und einem magnetischen Click-on-System.','detail.addedToast':'{qty} × {id} hinzugefügt.','detail.previewError':'Die DOOK-Vorschau konnte nicht geladen werden. Bitte wählen Sie eine Farbe, um es erneut zu versuchen.',
   'detail.frameOnly':'Nur Fassung','detail.a012SizeNote':', Glasgröße 50 mm','detail.enquireDraft':'Hallo DOOK,\n\nIch möchte mehr über {id} in {name} ({code}){sizeNote}{lensDesc} und die passenden Click-ons erfahren.\nBitte bestätigen Sie die passende Glasgröße und Verfügbarkeit.\n\n',
   'partnerCollection.mailSubject':'DOOK-Kollektionsanfrage','partnerCollection.mailGreeting':'Hallo DOOK,\n\nIch hätte gerne weitere Informationen zu den folgenden Fassungen:\n\n',
   'partnerCollection.mailFooter':'\n\nFirma:\nAnsprechpartner:\nTelefon:\n\nBitte teilen Sie mir Handelspreise, verfügbare Farben, Größen und Verfügbarkeit mit.',
@@ -284,7 +284,7 @@ const translations={
   'common.saving':'Wird gespeichert…','forgot.resetLinkSent':'Falls diese E-Mail-Adresse zu einem Konto gehört, ist ein Zurücksetzungslink auf dem Weg.','auth.resetSuccess':'Passwort aktualisiert. Sie können sich jetzt anmelden.',
   'shop.catA':'A-Modelle','shop.catAN':'AN-Modelle','shop.catT':'T-Modelle','shop.catTA':'TA-Modelle','shop.catDooks':'DOOK’s',
   'shop.noPhotoYet':'Produktfoto noch nicht verfügbar','shop.shownColour':'Foto zeigt eine andere Farbe: {colour}','shop.variant':'Variante','shop.addToSelection':'Zur Auswahl hinzufügen',
-  'shop.coloursAria':'{id} Farben','shop.quantityAria':'{id} Menge','shop.noMatches':'Keine passenden Modelle in dieser Kategorie. Versuchen Sie eine andere Kategorie oder Suche.',
+  'shop.coloursAria':'{id} Farben','shop.quantityAria':'{id} Menge','shop.decreaseAria':'Menge für {id} verringern','shop.increaseAria':'Menge für {id} erhöhen','shop.noMatches':'Keine passenden Modelle in dieser Kategorie. Versuchen Sie eine andere Kategorie oder Suche.',
   'shop.h1':'B2B-Shop','shop.b2bLogin':'B2B-Anmeldung','shop.checkingAccount':'Ihr Konto wird geprüft…','shop.exploreSignInNotice':'Entdecken Sie die Kollektion. Melden Sie sich als genehmigter Partner an, um Handelspreise zu sehen und Produkte auszuwählen.',
   'shop.draftPricesReview':'Entwurfspreise · Prüfen und aktivieren','shop.tradePricesUpdatingEnquiry':'Die Handelspreise werden aktualisiert. Sie können trotzdem eine Anfrage vorbereiten.',
   'shop.searchCategory':'In dieser Kategorie suchen','shop.searchPlaceholder2':'Modell, Farbe oder Artikelnummer…','shop.askAbout':'Nach {id} fragen',
@@ -320,7 +320,7 @@ function applyStaticTranslations(){
  document.querySelector('.mobile-toggle')?.setAttribute('aria-label',t('nav.toggleAria'));
  document.querySelector('.nav-label')&&(document.querySelector('.nav-label').textContent=t('nav.eyebrow'));
  document.querySelector('.close')?.setAttribute('aria-label',t('modal.closeAria'));
- const navKeys=['home','collection','about','news','contact'];
+ const navKeys=['home','collection','about','contact'];
  document.querySelectorAll('nav a[data-page]').forEach((a,i)=>{if(navKeys[i]&&a.firstChild?.nodeType===Node.TEXT_NODE)a.firstChild.textContent=t('nav.'+navKeys[i])+' '});
  const adminNav=document.querySelector('[data-admin-nav]');if(adminNav?.firstChild?.nodeType===Node.TEXT_NODE)adminNav.firstChild.textContent=t('common.administration')+' ';
  document.querySelectorAll('[data-set-lang]').forEach(b=>b.toggleAttribute('aria-current',b.dataset.setLang===currentLang));

@@ -45,7 +45,6 @@ Redigér filerne uden hash i navnet, fx:
 - `public/shop.js`: B2B-shop og varevalg.
 - `public/manage.js`: administration af varer, kategorier, billeder og ordrer.
 - `public/b2b.js`: kontoadgang og About DOOK.
-- `public/news.js`: nyheder.
 - `worker/index.mjs`, `worker/commerce.mjs` og `worker/auth.mjs`: serverlogik, adgangskontrol og login.
 
 `index.html` peger direkte på disse rene filnavne — under `npm run dev` skal du bare genindlæse siden efter en ændring, der sker ingen automatisk omskrivning af `index.html`. Filer med et hash i navnet (fx `app.<hash>.js`) opstår kun inde i `dist/`, når du kører `npm run build` til produktion — de bliver aldrig skrevet til `public/` eller committet til Git.
