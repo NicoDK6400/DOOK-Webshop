@@ -12,7 +12,37 @@ const tradeModel=id=>window.tradeCatalog.find(p=>p.id===id);
 function chosen(p,store=shopChoices){const choice=store[p.id]||{colour:0,item:0};const variant=p.variants[choice.colour]||p.variants[0];return {variant,item:variant.items[choice.item]||variant.items[0]}}
 function colourPaint(v){const code=v.code.split('/')[0];const known={A1:'#634333',B1:'#232629',B5:'#313332',C1:'#345969',C2:'#344b68',D1:'#987347',F1:'#888b8d',G1:'#4d6143',H1:'#9c886a',R1:'#972e39',T1:'#555d63',T2:'#766454',T3:'#314358',TG:'#b5a16b','GN01-3':'#7b9178',MI01:'#d5b8af','BR01-3':'#8e7355','BR01-GR-2':'linear-gradient(#78654e,#eee7db)','BL01-GR-1':'linear-gradient(#759cae,#e3eff2)','GY01-GR-2':'linear-gradient(#686e71,#eceeed)','GY01-3-PL':'#525958','YE01-NV':'#e3d279','CL01-AB':'#e3eeee','CL01-AB+1,0':'#e3eeee'};return known[code]||'#b5b9b6'}
 function categoryTabs(current,mode){return `<div class="category-tabs" role="tablist" aria-label="${mode==='shop'?'Partner shop':'Collection'} categories">${categories.map(([key,label])=>`<button role="tab" aria-selected="${current===key}" class="${current===key?'selected':''}" data-${mode}-category="${key}">${label}<span>${window.tradeCatalog.filter(p=>p.category===key).length}</span></button>`).join('')}</div>`}
-function tradePhoto(p,v){const exact=v.images?.[0],image=exact?.src||p.referenceImage;if(!image)return `<div class="model-specimen"><span>${escapeHTML(p.material)}</span><strong>${escapeHTML(p.id)}</strong><small>${t('shop.noPhotoYet')}</small></div>`;return `<div class="shop-photo ${p.pairedImage?'paired-photo':''}"><img src="${escapeHTML(image)}" loading="lazy" alt="${escapeHTML(p.id+' · '+(exact?v.name:p.referenceColour))}">${p.pairedImage?`<img src="${p.pairedImage}" alt="" loading="lazy">`:''}${!exact?`<span class="photo-colour-note">${t('shop.shownColour',{colour:escapeHTML(p.referenceColour)})}</span>`:''}</div>`}
+function tradePhoto(p,v){const exact=v.images?.[0],image=exact?.src||p.referenceImage;if(!image)return `<div class="model-specimen"><span>${escapeHTML(p.material)}</span><strong>${escapeHTML(p.id)}</strong><small>${t('shop.noPhotoYet')}</small></div>`;const ready=!p.pairedImage&&trimmedReady.get(image),trim=p.pairedImage?'':ready?'data-trim-state="done"':`data-trim-src="${escapeHTML(image)}"`;return `<div class="shop-photo ${p.pairedImage?'paired-photo':''}"><img src="${escapeHTML(ready||image)}" ${trim} loading="lazy" alt="${escapeHTML(p.id+' · '+(exact?v.name:p.referenceColour))}">${p.pairedImage?`<img src="${p.pairedImage}" alt="" loading="lazy">`:''}</div>${!exact?`<span class="photo-colour-note">${t('shop.shownColour',{colour:escapeHTML(p.referenceColour)})}</span>`:''}`}
+// Photos arrive with very different empty margins around the frame, so equal boxes showed
+// frames at different sizes. Each photo is cropped to its content once (cached per source)
+// so every frame fills the card width. Paired DOOK photos are skipped: their two layers are
+// registered on one shared canvas.
+const trimmedPhotos=new Map(),trimmedReady=new Map();
+async function cropToContent(src){
+ try{
+  const im=new Image();im.src=src;await im.decode();
+  const nw=im.naturalWidth,nh=im.naturalHeight,s=Math.min(1,320/Math.max(nw,nh)),w=Math.max(1,Math.round(nw*s)),h=Math.max(1,Math.round(nh*s));
+  const probe=document.createElement('canvas');probe.width=w;probe.height=h;const ctx=probe.getContext('2d',{willReadFrequently:true});ctx.drawImage(im,0,0,w,h);
+  const d=ctx.getImageData(0,0,w,h).data,bg=[0,(w-1)*4,(h-1)*w*4,(h*w-1)*4].reduce((a,i)=>a.map((val,k)=>val+d[i+k]/4),[0,0,0,0]);
+  const cols=new Uint16Array(w),rows=new Uint16Array(h);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4;if(d[i+3]>40&&(bg[3]<128||Math.abs(d[i]-bg[0])+Math.abs(d[i+1]-bg[1])+Math.abs(d[i+2]-bg[2])>36)){cols[x]++;rows[y]++}}
+  // Ignore isolated specks: a row/column counts only with more than one content pixel.
+  const first=a=>a.findIndex(n=>n>1),last=a=>a.length-1-[...a].reverse().findIndex(n=>n>1);
+  const x0=first(cols),y0=first(rows);if(x0<0||y0<0)return src;
+  const sx=Math.max(0,x0-2)/s,sy=Math.max(0,y0-2)/s,sw=Math.min(w,last(cols)+3)/s-sx,sh=Math.min(h,last(rows)+3)/s-sy;
+  if(sw>nw*.97&&sh>nh*.97)return src;
+  const out=document.createElement('canvas');out.width=Math.round(sw);out.height=Math.round(sh);out.getContext('2d').drawImage(im,sx,sy,sw,sh,0,0,out.width,out.height);
+  const blob=await new Promise(r=>out.toBlob(r,'image/png'));return blob?URL.createObjectURL(blob):src;
+ }catch{return src}
+}
+function trimPhoto(img){
+ const src=img.dataset.trimSrc;img.dataset.trimState='pending';
+ const show=url=>{if(url&&img.getAttribute('src')!==url)img.src=url;img.dataset.trimState='done'};
+ setTimeout(()=>{if(img.dataset.trimState!=='done')img.dataset.trimState='done'},4000);
+ if(!trimmedPhotos.has(src))trimmedPhotos.set(src,cropToContent(src).then(url=>{trimmedReady.set(src,url);return url}));
+ trimmedPhotos.get(src).then(show);
+}
+new MutationObserver(()=>document.querySelectorAll('img[data-trim-src]:not([data-trim-state])').forEach(trimPhoto)).observe(document.querySelector('#app'),{childList:true,subtree:true});
 function selectedPrice(sku){if(!canPrice()||!priceData||(!priceData.config.enabled&&!isAdmin()))return null;return priceData.prices.find(r=>r.sku===sku)?.amount??null}
 function priceLabel(sku){const value=selectedPrice(sku);if(value!==null)return `<strong>${money(value)}</strong><small>${escapeHTML(priceData.config.tax)}${!priceData.config.enabled?t('shop.draftPriceSuffix'):''}</small>`;return `<a href="#login">${canPrice()?t('common.priceOnRequest'):t('shop.signInForPrices')}</a>`}
 function shopCard(p){const {variant:v,item}=chosen(p);return `<article class="shop-card" data-shop-card="${escapeHTML(p.id)}">${tradePhoto(p,v)}<div class="shop-card-body"><div class="shop-product-heading"><h2>${escapeHTML(p.name||p.id)}</h2><span>${escapeHTML(p.material)}</span></div><div class="shop-swatches" aria-label="${t('shop.coloursAria',{id:escapeHTML(p.id)})}">${p.variants.map((v,i)=>`<button type="button" data-shop-colour="${i}" data-model="${p.id}" aria-label="${escapeHTML(p.id+' · '+v.name)}" aria-pressed="${v===chosen(p).variant}" title="${escapeHTML(v.name)}" style="--colour:${colourPaint(v)}"></button>`).join('')}</div><p class="shop-colour-name">${escapeHTML(v.name)}</p><div class="shop-size-price"><label>${p.kind==='other'?t('shop.variant'):t('common.lensSize')}<select data-shop-size="${p.id}" aria-label="${p.id} lens size">${v.items.map((x,i)=>`<option value="${i}" ${x===item?'selected':''}>${escapeHTML(x.size)}${p.kind==='other'?'':' mm'}</option>`).join('')}</select></label><div class="shop-price">${priceLabel(item.sku)}</div></div><small class="shop-sku">${escapeHTML(item.sku)}</small>${stockBadge(item.sku)}<div class="quantity shop-quantity" data-shop-sku="${escapeHTML(item.sku)}"><button type="button" data-shop-step="-1" aria-label="${t('shop.decreaseAria',{id:p.id})}" ${!canPrice()||!shopBag[item.sku]?'disabled':''}>−</button><span>${shopBag[item.sku]||0}</span><button type="button" data-shop-step="1" aria-label="${t('shop.increaseAria',{id:p.id})}" ${!canPrice()||shopBag[item.sku]>=100?'disabled':''}>+</button></div></div></article>`}
