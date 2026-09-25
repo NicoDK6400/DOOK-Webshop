@@ -31,11 +31,12 @@ function detailPriceHTML(){return '<div class="trade-price" aria-live="polite"><
 function money(n){return new Intl.NumberFormat(localeFor[currentLang],{style:'currency',currency:priceData?.config?.currency||'DKK'}).format(n)}
 function refreshPrices(){
  document.querySelectorAll('[data-price-model]').forEach(el=>{el.textContent='';if(!canPrice()||!priceData||!priceData.config.enabled)return;const rows=priceData.prices.filter(r=>r.model===el.dataset.priceModel);if(rows.length)el.textContent=t('common.fromPrefix')+money(Math.min(...rows.map(r=>r.amount)))});
+ const shopSlot=document.querySelector('.detail-shop-slot');if(shopSlot)shopSlot.innerHTML=canPrice()&&detailModel?`<a class="pill outline" href="#partners" data-open-shop-model="${escapeHTML(detailModel)}">${t('shop.h1')} <span></span></a>`:'';
  const box=document.querySelector('.trade-price');if(!box)return;
  if(!canPrice()){box.innerHTML='';box.hidden=true;return}box.hidden=false;
  if(!priceData){box.textContent=t('partners.loadingPrices');return}
  if(!priceData.config.enabled){box.innerHTML=isAdmin()?`<a href="#admin">${t('partners.reviewActivate')} </a>`:t('partners.pricesUpdating');return}
- const p=products.find(p=>p.id===detailModel),v=p?.variants[variantIndex];if(!p||!v)return;
+ const p=detailProduct(detailModel),v=p?.variants[variantIndex];if(!p||!v)return;
  const rows=priceData.prices.filter(r=>r.model===p.id&&r.colour===v.code);
  const values=[...new Set(rows.map(r=>r.amount))];let text=values.length?`${values.length>1?t('common.fromPrefix'):''}${money(Math.min(...values))}`:t('common.priceOnRequest');
  box.innerHTML=`<span class="eyebrow">${t('partners.yourTradePriceEyebrow')}</span><strong>${escapeHTML(text)}</strong><small>${escapeHTML(priceData.config.currency)} · ${escapeHTML(priceData.config.tax)}</small>`;

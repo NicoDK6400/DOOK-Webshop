@@ -14,8 +14,12 @@ window.dookLenses=[
 ];
 // Order matches window.dookLenses above; maps each preview lens to its DOOK item code.
 window.dookLensCodes=['GN01-3','MI01','BR01-GR-2','BR01-3','CL01-AB','GY01-GR-2','GY01-3-PL','YE01-NV','CL01-AB+1,0','BL01-GR-1'];
-function lensOptions(id){
- if(!['A001','AN001'].includes(id))return '';
+// The try-on overlay is positioned by hand for these exact photos; other photos of the same
+// model frame the glasses differently, so they show without it.
+const tryOnPhotos={'/assets/a001-frame-full.png':'A001','/assets/frames/an001-a1-front.webp':'AN001','/assets/frames/an001-c2-front.webp':'AN001'};
+window.hasDookPreview=(model,src)=>tryOnPhotos[src]===model;
+function lensOptions(id,src){
+ if(!window.hasDookPreview(id,src))return '';
  return `<section class="lens-options" aria-label="Choose DOOK lens colour"><div class="option-label"><span>DOOK lenses</span><strong class="selected-lens" aria-live="polite">${lensIndex<0?'Frame only':window.dookLenses[lensIndex].name}</strong></div><div class="lens-options-grid"><button type="button" class="lens-choice ${lensIndex<0?'selected':''}" data-dook-colour="-1" aria-pressed="${lensIndex<0}"><span class="lens-chip no-lens" aria-hidden="true"></span><span>Frame only<small>Without a DOOK</small></span></button>${window.dookLenses.map((lens,i)=>`<button type="button" class="lens-choice ${lensIndex===i?'selected':''}" data-dook-colour="${i}" aria-pressed="${lensIndex===i}"><span class="lens-chip" style="background:${lens.swatch}" aria-hidden="true"></span><span>${lens.name}<small>${lens.detail}</small></span></button>`).join('')}</div><p class="lens-preview-note">Illustrative fit and colours. Actual lenses may differ. Please confirm model, size and availability with DOOK.</p></section>`;
 }
 // Reuse the photographed DOOK rims and magnet tabs from the homepage.
@@ -39,9 +43,16 @@ function lensOptions(id){
   }
   tinted.set(key,output);return output;
  }
- window.makeDookScene=async(model,src,lens)=>{
+ window.makeDookScene=async(model,src,lens,paired)=>{
   const image=await load(src);
-  if(!['A001','AN001'].includes(model))return {base:src,composite:src,layers:[],width:image.naturalWidth,height:image.naturalHeight};
+  // Left/right click-on photos registered on one canvas: show them as one image.
+  if(paired){
+   const key=src+'|'+paired;if(scenes.has(key))return scenes.get(key);
+   const second=await load(paired),out=canvas(image.naturalWidth,image.naturalHeight),ctx=out.getContext('2d');
+   ctx.drawImage(image,0,0);ctx.drawImage(second,0,0,out.width,out.height);
+   const url=out.toDataURL('image/png'),result={base:url,composite:url,layers:[],width:out.width,height:out.height};scenes.set(key,result);return result;
+  }
+  if(!window.hasDookPreview(model,src))return {base:src,composite:src,layers:[],width:image.naturalWidth,height:image.naturalHeight};
   const key=src+'|'+(lens?.name||'frame');if(scenes.has(key))return scenes.get(key);
   const crop=model==='A001'?[220,430,1680,640]:[0,0,image.naturalWidth,image.naturalHeight];
   const w=1200,h=Math.round(crop[3]/crop[2]*w),output=canvas(w,h),ctx=output.getContext('2d');ctx.drawImage(image,...crop,0,0,w,h);
