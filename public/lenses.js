@@ -76,15 +76,4 @@ function lensOptions(id,src){
   }
   result.composite=output.toDataURL('image/png');scenes.set(key,result);return result;
  };
- // A small tinted photo of each side (left/right), for a colour swatch thumbnail
- // instead of a flat colour dot — reuses the same tinting as the on-frame preview.
- window.dookSwatchImages=async(code)=>{
-  const idx=window.dookLensCodes.indexOf(code);
-  if(idx<0)return null;
-  const lens=window.dookLenses[idx];
-  try{
-   const [l,r]=await Promise.all(['l','r'].map(side=>clickOn(side,lens)));
-   return [l.toDataURL('image/png'),r.toDataURL('image/png')];
-  }catch{return null}
- };
 })();
